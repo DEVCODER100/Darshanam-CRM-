@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "gst_amount" bigint DEFAULT 0 NOT NULL;
