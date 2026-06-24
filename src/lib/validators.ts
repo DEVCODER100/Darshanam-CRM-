@@ -131,6 +131,11 @@ export const loanUpsertSchema = z.object({
   disbursementDate: isoDate.optional().or(z.literal("")),
 });
 
+export const stageUpdateSchema = z.object({
+  currentStage: stage,
+  remarks: z.string().trim().optional().or(z.literal("")),
+});
+
 export const documentCreateSchema = z.object({
   documentType: z.enum([
     "aadhaar",

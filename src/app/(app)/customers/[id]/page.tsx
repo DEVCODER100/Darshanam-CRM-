@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, customers, documents } from "@/db/schema";
+import { bookings, customers, documents, propertyCosts, payments } from "@/db/schema";
 import { DocumentPanel } from "@/components/DocumentPanel";
+import { StagePanel } from "@/components/StagePanel";
 import { can } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/rbac";
 
@@ -32,6 +33,26 @@ export default async function CustomerDetailPage({
       .where(eq(documents.customerId, customer.id))
       .orderBy(desc(documents.createdAt)),
   ]);
+
+  // Stage payment panels for this customer's stage-based bookings.
+  const stageBookings = customerBookings.filter((b) => b.stageBased);
+  const stageIds = stageBookings.map((b) => b.id);
+  const [stageCosts, stagePaid] = stageIds.length
+    ? await Promise.all([
+        db.select().from(propertyCosts).where(inArray(propertyCosts.bookingId, stageIds)),
+        db
+          .select({
+            bookingId: payments.bookingId,
+            paid: sql<string>`coalesce(sum(${payments.amount}),0)`,
+            last: sql<string | null>`max(${payments.paymentDate})`,
+          })
+          .from(payments)
+          .where(inArray(payments.bookingId, stageIds))
+          .groupBy(payments.bookingId),
+      ])
+    : [[], []];
+  const stageCostMap = new Map(stageCosts.map((c) => [c.bookingId, c.totalCost]));
+  const stagePaidMap = new Map(stagePaid.map((p) => [p.bookingId, p]));
 
   return (
     <div className="space-y-7">
@@ -96,6 +117,33 @@ export default async function CustomerDetailPage({
           </div>
         )}
       </section>
+
+      {stageBookings.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Stage payment</h2>
+          <div className="space-y-5">
+            {stageBookings.map((booking) => {
+              const paid = stagePaidMap.get(booking.id);
+              return (
+                <div key={booking.id} className="card p-5">
+                  <div className="mb-3 flex items-center justify-between">
+                    <Link href={`/bookings/${booking.id}`} className="font-medium text-brass-dark hover:underline">
+                      {booking.propertyType} {booking.propertyNumber ?? ""}
+                    </Link>
+                  </div>
+                  <StagePanel
+                    totalCost={stageCostMap.get(booking.id) ?? 0n}
+                    currentStage={booking.currentStage}
+                    received={paid ? BigInt(paid.paid) : 0n}
+                    lastPaymentDate={paid?.last ?? null}
+                    compact
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-medium">Documents</h2>

@@ -14,6 +14,7 @@ import {
   CONSTRUCTION_STAGES,
   type PaymentType,
 } from "./stage";
+import { stageDisbursement } from "./stage-ladder";
 
 export interface PaymentBreakdown {
   receivable: bigint;
@@ -32,6 +33,12 @@ export interface DashboardData {
   activeLoans: number;
   paymentBreakdown: Record<PaymentType, PaymentBreakdown>;
   stageSummary: { value: string; label: string; count: number }[];
+  stageMetrics: {
+    customers: number;
+    pendingRelease: bigint;
+    released: bigint;
+    remaining: bigint;
+  };
   alerts: {
     overduePayments: number;
     dueThisMonth: number;
@@ -123,6 +130,10 @@ export async function getDashboardData(
   let totalOutstanding = 0n;
   let overduePayments = 0;
   const paymentBreakdown = emptyBreakdown();
+  let stageCustomers = 0;
+  let stagePendingRelease = 0n;
+  let stageReleased = 0n;
+  let stageRemaining = 0n;
 
   for (const booking of bookingRows) {
     const totalCost = costMap.get(booking.id)?.totalCost ?? 0n;
@@ -145,6 +156,14 @@ export async function getDashboardData(
     bucket.receivable += receivable;
     bucket.received += received;
     bucket.due += due;
+
+    if (booking.stageBased) {
+      const sd = stageDisbursement(totalCost, booking.currentStage, received);
+      stageCustomers += 1;
+      stagePendingRelease += sd.pendingRelease;
+      stageReleased += received;
+      stageRemaining += sd.remaining;
+    }
   }
 
   const stageSummary = CONSTRUCTION_STAGES.map((stage) => ({
@@ -168,6 +187,12 @@ export async function getDashboardData(
     activeLoans: activeLoans[0].count,
     paymentBreakdown,
     stageSummary,
+    stageMetrics: {
+      customers: stageCustomers,
+      pendingRelease: stagePendingRelease,
+      released: stageReleased,
+      remaining: stageRemaining,
+    },
     alerts: {
       overduePayments,
       dueThisMonth: dueThisMonth[0].count,

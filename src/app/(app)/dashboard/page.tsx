@@ -39,14 +39,17 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-medium">Construction stages</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {d.stageSummary.map((stage) => (
-            <div key={stage.value} className="card p-4">
-              <p className="money text-2xl font-medium">{stage.count}</p>
-              <p className="text-sm text-muted">{stage.label}</p>
-            </div>
-          ))}
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-medium">Stage-wise bank disbursement</h2>
+          <Link href="/stages" className="text-sm text-brass-dark hover:underline">
+            Stage tracking →
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card label="Stage customers" value={String(d.stageMetrics.customers)} href="/stages" />
+          <Card label="Pending bank release" value={formatINR(d.stageMetrics.pendingRelease, { paise2dp: false })} accent="amber" href="/stages" />
+          <Card label="Released amount" value={formatINR(d.stageMetrics.released, { paise2dp: false })} href="/stages" />
+          <Card label="Remaining amount" value={formatINR(d.stageMetrics.remaining, { paise2dp: false })} href="/stages" />
         </div>
       </section>
 

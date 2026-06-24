@@ -290,6 +290,27 @@ export const documents = pgTable(
   }),
 );
 
+// Log of construction-stage changes for a booking (who moved it, when, why).
+export const stageHistory = pgTable(
+  "stage_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    previousStage: constructionStageEnum("previous_stage"),
+    newStage: constructionStageEnum("new_stage"),
+    remarks: text("remarks"),
+    changedBy: uuid("changed_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    bookingIdx: index("stage_history_booking_idx").on(t.bookingId),
+  }),
+);
+
 export const auditLog = pgTable(
   "audit_log",
   {
@@ -319,6 +340,7 @@ export type PropertyCost = typeof propertyCosts.$inferSelect;
 export type PaymentScheduleRow = typeof paymentSchedule.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Loan = typeof loans.$inferSelect;
+export type StageHistoryRow = typeof stageHistory.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type AuditLogRow = typeof auditLog.$inferSelect;
 

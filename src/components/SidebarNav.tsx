@@ -7,6 +7,7 @@ const ITEMS = [
   ["/dashboard", "Dashboard"],
   ["/customers", "Customers"],
   ["/bookings", "Bookings"],
+  ["/stages", "Stages"],
   ["/calendar", "Calendar"],
   ["/reports", "Reports"],
   ["/audit", "Audit"],

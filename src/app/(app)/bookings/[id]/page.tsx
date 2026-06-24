@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions";
 import { formatINR, paiseToRupeeString, bpsToPercentString } from "@/lib/money";
 import { allocatePayments, type CoverageStatus } from "@/lib/allocation";
 import { computeGstStatus } from "@/lib/gst-calc";
+import { StagePanel } from "@/components/StagePanel";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { PaymentEntry, DeletePaymentButton } from "@/components/PaymentEntry";
 import { LoanPanel } from "@/components/LoanPanel";
@@ -154,23 +155,16 @@ export default async function BookingDetailPage({
         )}
       </section>
 
-      {booking.stageBased && (
-        <section className="card border-l-[3px] border-l-brass p-5">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <Line label="Current stage" value={receivableSummary.stageLabel} />
-            <Line
-              label="Stage percentage"
-              value={`${receivableSummary.stagePercentBps / 100}%`}
-            />
-            <Line
-              label="Stage receivable"
-              value={formatINR(receivableSummary.receivable)}
-            />
-            <Line
-              label="Stage due"
-              value={formatINR(
-                receivableSummary.due > 0n ? receivableSummary.due : 0n,
-              )}
+      {/* Stage-wise bank disbursement panel */}
+      {booking.stageBased && cost && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium text-ink">Stage payment</h2>
+          <div className="card border-l-[3px] border-l-brass p-5">
+            <StagePanel
+              totalCost={cost.totalCost}
+              currentStage={booking.currentStage}
+              received={o.totalPaid}
+              lastPaymentDate={payments[0]?.paymentDate ?? null}
             />
           </div>
         </section>
