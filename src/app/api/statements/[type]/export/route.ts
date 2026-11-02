@@ -1,12 +1,21 @@
 import { requireCapability } from "@/lib/rbac";
+import { can } from "@/lib/permissions";
 import { jsonError } from "@/lib/api";
-import { todayISO } from "@/lib/booking-detail";
+import { todayISO } from "@/lib/dates";
 import { formatReportDate, isMonth } from "@/lib/statement";
+import {
+  describeFilters,
+  parseDueFilters,
+  parseReceivedFilters,
+  resolvePeriod,
+  type Params,
+} from "@/lib/report-filters";
 import { getDueReport, getReceivedReport, getStatement } from "@/lib/statement-data";
 import {
   buildStatementCsv,
   buildStatementXlsx,
   dueSheet,
+  pdfTable,
   receivedSheet,
   statementSheet,
 } from "@/lib/statement-export";
@@ -21,7 +30,7 @@ const NAMES: Record<string, string> = {
   statement: "Statement",
 };
 
-// GET /api/statements/[type]/export?month=YYYY-MM&format=xlsx|csv|pdf  (report:view)
+// GET /api/statements/[type]/export?<same filters as the screen>&format=xlsx|csv|pdf  (report:view)
 export async function GET(req: Request, { params }: { params: { type: string } }) {
   const gate = await requireCapability("report:view");
   if (!gate.ok) return gate.response;
@@ -30,16 +39,30 @@ export async function GET(req: Request, { params }: { params: { type: string } }
   if (!name) return jsonError("Unknown report", 404);
 
   const url = new URL(req.url);
-  const month = url.searchParams.get("month");
-  if (!isMonth(month)) return jsonError("month must look like 2026-09", 422);
+  const sp: Params = Object.fromEntries(url.searchParams.entries());
   const format = url.searchParams.get("format") ?? "xlsx";
+  const viewer = { canSeePan: can(gate.user.role, "sensitive:view") };
 
-  const sheet =
-    params.type === "received"
-      ? receivedSheet(await getReceivedReport(month))
-      : params.type === "due"
-        ? dueSheet(await getDueReport(month))
-        : statementSheet(await getStatement(month));
+  // Statement stays month-only; the other two accept a month or a from/to range.
+  const month = url.searchParams.get("month");
+  if (params.type === "statement" && !isMonth(month)) {
+    return jsonError("month must look like 2026-09", 422);
+  }
+  const period = resolvePeriod(sp);
+
+  let sheet;
+  if (params.type === "received") {
+    const filters = parseReceivedFilters(sp);
+    sheet = receivedSheet(
+      await getReceivedReport(period, filters, viewer),
+      describeFilters(filters),
+    );
+  } else if (params.type === "due") {
+    const filters = parseDueFilters(sp);
+    sheet = dueSheet(await getDueReport(period, filters, viewer), describeFilters(filters));
+  } else {
+    sheet = statementSheet(await getStatement(month as string));
+  }
 
   // Same naming as the reference files: Payment-Received-Report-02-Nov-2026.xlsx
   const stamp = formatReportDate(todayISO()).replace(",", "").replace(/ /g, "-");
@@ -55,7 +78,7 @@ export async function GET(req: Request, { params }: { params: { type: string } }
       });
     }
     if (format === "pdf") {
-      const buf = await buildPdf(sheet);
+      const buf = await buildPdf(pdfTable(sheet));
       return new Response(new Uint8Array(buf), {
         headers: {
           "Content-Type": "application/pdf",

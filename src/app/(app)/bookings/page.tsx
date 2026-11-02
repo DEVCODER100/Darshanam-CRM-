@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { bookings, customers } from "@/db/schema";
 import { loadBookingDetail } from "@/lib/booking-detail";
 import { formatINR } from "@/lib/money";
+import { ACCOUNT_STATUS_LABELS, type AccountStatus } from "@/lib/report-filters";
+import { loadAccounts } from "@/lib/statement-data";
+import { todayISO } from "@/lib/dates";
 import { CONSTRUCTION_STAGES } from "@/lib/stage";
 import type { ConstructionStage, PaymentType } from "@/lib/stage";
 
@@ -18,6 +21,7 @@ export default async function BookingsPage({
     stage?: string;
     paymentType?: string;
     due?: string;
+    status?: string;
     from?: string;
     to?: string;
   };
@@ -69,7 +73,13 @@ export default async function BookingsPage({
       detail: await loadBookingDetail(row.id),
     })),
   );
+  const wantStatus =
+    searchParams.status && searchParams.status in ACCOUNT_STATUS_LABELS
+      ? (searchParams.status as AccountStatus)
+      : undefined;
+  const accounts = wantStatus ? await loadAccounts(todayISO()) : null;
   const rows = withDue.filter((row) => {
+    if (wantStatus && accounts?.get(row.id)?.status !== wantStatus) return false;
     if (searchParams.due === "due")
       return (row.detail?.outstanding.outstanding ?? 0n) > 0n;
     if (searchParams.due === "paid")
@@ -99,6 +109,12 @@ export default async function BookingsPage({
           <option value="">All due statuses</option>
           <option value="due">Amount due</option>
           <option value="paid">Paid / advance</option>
+        </select>
+        <select name="status" className="field" defaultValue={searchParams.status}>
+          <option value="">All account statuses</option>
+          {Object.entries(ACCOUNT_STATUS_LABELS).map(([k, label]) => (
+            <option key={k} value={k}>{label}</option>
+          ))}
         </select>
         <input type="date" name="from" className="field" defaultValue={searchParams.from} />
         <input type="date" name="to" className="field" defaultValue={searchParams.to} />

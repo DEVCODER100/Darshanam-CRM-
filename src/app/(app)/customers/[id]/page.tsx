@@ -7,6 +7,7 @@ import { DocumentPanel } from "@/components/DocumentPanel";
 import { StagePanel } from "@/components/StagePanel";
 import { can } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/rbac";
+import { displayPan } from "@/lib/pan";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,15 @@ export default async function CustomerDetailPage({
           <Info label="Mobile" value={customer.mobile} />
           <Info label="Alternate number" value={customer.alternateMobile ?? "—"} />
           <Info label="Email" value={customer.email ?? "—"} />
-          <Info label="PAN" value={customer.panMasked ?? customer.aadhaarPanMasked ?? "—"} mono />
+          <Info
+            label="PAN"
+            value={
+              displayPan(customer, !!user && can(user.role, "sensitive:view")) ??
+              (customer.panExemptReason ? `No PAN: ${customer.panExemptReason}` : "Missing, please add")
+            }
+            mono={!!customer.panEncrypted || !!customer.panMasked}
+          />
+          <Info label="Client code" value={customer.clientCode ?? "—"} mono />
           <Info label="Aadhaar" value={customer.aadhaarMasked ?? "—"} mono />
           <Info label="Sales executive" value={customer.salesExecutive ?? "—"} />
           <Info label="Address" value={customer.address ?? "—"} />

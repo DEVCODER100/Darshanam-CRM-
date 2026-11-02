@@ -43,6 +43,13 @@
       "when": 1793616727873,
       "tag": "0005_curvy_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793618780205,
+      "tag": "0006_natural_captain_marvel",
+      "breakpoints": true
     }
   ]
 }

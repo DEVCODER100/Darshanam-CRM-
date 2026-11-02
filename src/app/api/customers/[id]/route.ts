@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, auditLog } from "@/db/schema";
+import { panColumns } from "@/lib/pan";
+import { publicCustomer } from "@/lib/customer-public";
 import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, jsonError } from "@/lib/api";
@@ -19,7 +21,7 @@ export async function GET(_req: Request, { params }: Params) {
     where: eq(customers.id, params.id),
   });
   if (!row) return jsonError("Customer not found", 404);
-  return NextResponse.json({ customer: row });
+  return NextResponse.json({ customer: publicCustomer(row) });
 }
 
 // PATCH /api/customers/[id] — edit (customer:edit).
@@ -43,8 +45,30 @@ export async function PATCH(req: Request, { params }: Params) {
     update.alternateMobile = input.alternateMobile || null;
   if (input.email !== undefined) update.email = input.email || null;
   if (input.address !== undefined) update.address = input.address || null;
-  if (input.panNumber !== undefined)
-    update.panMasked = input.panNumber ? maskSensitive(input.panNumber) : null;
+  // PAN: blank means "leave it as it is". A new PAN is encrypted and replaces the
+  // old one; with no PAN at all, a reason is required.
+  if (input.panNumber) {
+    try {
+      const cols = panColumns(input.panNumber);
+      const dup = await db.query.customers.findFirst({
+        where: eq(customers.panHash, cols.panHash),
+        columns: { id: true, fullName: true },
+      });
+      if (dup && dup.id !== params.id)
+        return jsonError(`This PAN is already on file for ${dup.fullName}.`, 409);
+      Object.assign(update, cols, { panExemptReason: null });
+    } catch (err) {
+      console.error(err);
+      return jsonError("PAN storage is not configured on the server (PAN_ENCRYPTION_KEY).", 500);
+    }
+  } else if (input.noPanReason) {
+    Object.assign(update, {
+      panEncrypted: null,
+      panHash: null,
+      panMasked: null,
+      panExemptReason: input.noPanReason,
+    });
+  }
   if (input.aadhaarNumber !== undefined)
     update.aadhaarMasked = input.aadhaarNumber
       ? maskSensitive(input.aadhaarNumber)

@@ -13,6 +13,7 @@ import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError, serializeBigInt } from "@/lib/api";
 import { paymentCreateSchema } from "@/lib/validators";
 import { rupeesToPaise } from "@/lib/money";
+import { newPaymentNumber } from "@/lib/codes";
 import { calculateReceivable, checkCollectionLimit } from "@/lib/stage";
 
 type Params = { params: { id: string } };
@@ -107,6 +108,10 @@ export async function POST(req: Request, { params }: Params) {
     maintenanceAmount,
     documentationAmount,
     paymentFor: input.paymentFor || null,
+    paymentNumber: newPaymentNumber(input.paymentDate),
+    instrumentDate: input.instrumentDate || null,
+    instrumentNumber: input.instrumentNumber || null,
+    instrumentBank: input.instrumentBank || null,
     mode: input.mode,
     stage: input.stage ?? booking.currentStage,
     source: input.source,

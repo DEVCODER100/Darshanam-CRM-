@@ -37,10 +37,10 @@ export interface BookingDetail {
   };
 }
 
+import { todayISO } from "./dates";
+
 /** "Today" as an ISO date (UTC) — the as-of date for the outstanding calc. */
-export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export { todayISO };
 
 export async function loadBookingDetail(
   bookingId: string,

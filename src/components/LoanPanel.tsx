@@ -22,6 +22,8 @@ type LoanInput = {
   customerContribution: string | null;
   amountReleased: string;
   bankName: string | null;
+  branchName?: string | null;
+  branchContact?: string | null;
   referenceNumber: string | null;
   sanctionDate: string | null;
   approvalDate: string | null;
@@ -47,6 +49,8 @@ export function LoanPanel({
     customerContribution: toRupees(loan?.customerContribution),
     amountReleased: toRupees(loan?.amountReleased) || "0",
     bankName: loan?.bankName ?? "",
+    branchName: loan?.branchName ?? "",
+    branchContact: loan?.branchContact ?? "",
     referenceNumber: loan?.referenceNumber ?? "",
     sanctionDate: loan?.sanctionDate ?? "",
     approvalDate: loan?.approvalDate ?? "",
@@ -119,6 +123,8 @@ export function LoanPanel({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Status"><select className="field" value={values.status} onChange={set("status")}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
         <Field label="Bank name"><input className="field" value={values.bankName} onChange={set("bankName")} /></Field>
+        <Field label="Branch"><input className="field" value={values.branchName} onChange={set("branchName")} /></Field>
+        <Field label="Branch contact no."><input className="field" value={values.branchContact} onChange={set("branchContact")} /></Field>
         <Field label="Loan amount (₹)"><input className="field" value={values.loanAmount} onChange={set("loanAmount")} /></Field>
         <Field label="Customer contribution (₹)"><input className="field" value={values.customerContribution} onChange={set("customerContribution")} /></Field>
         <Field label="Amount released (₹)"><input className="field" value={values.amountReleased} onChange={set("amountReleased")} /></Field>

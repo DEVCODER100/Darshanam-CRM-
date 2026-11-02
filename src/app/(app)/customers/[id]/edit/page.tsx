@@ -4,6 +4,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { customers } from "@/db/schema";
 import { CustomerForm } from "@/components/CustomerForm";
+import { getCurrentUser } from "@/lib/rbac";
+import { can } from "@/lib/permissions";
+import { displayPan } from "@/lib/pan";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +19,8 @@ export default async function EditCustomerPage({
     where: eq(customers.id, params.id),
   });
   if (!c) notFound();
+  const user = await getCurrentUser();
+  const shownPan = displayPan(c, !!user && can(user.role, "sensitive:view")) ?? "";
 
   return (
     <div>
@@ -32,9 +37,10 @@ export default async function EditCustomerPage({
           alternateMobile: c.alternateMobile ?? "",
           email: c.email ?? "",
           address: c.address ?? "",
-          // Aadhaar/PAN is stored masked; leave the field blank so a re-entry is
-          // explicit (entering a value replaces the stored masked value).
-          panNumber: "",
+          // Full PAN for roles allowed to see it. A masked value is never pre-filled
+          // (blank means "leave the stored PAN as it is").
+          panNumber: shownPan.includes("X") ? "" : shownPan,
+          noPanReason: c.panExemptReason ?? "",
           aadhaarNumber: "",
           salesExecutive: c.salesExecutive ?? "",
           notes: c.notes ?? "",

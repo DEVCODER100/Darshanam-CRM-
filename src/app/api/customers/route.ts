@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, auditLog } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { panColumns } from "@/lib/pan";
+import { nextCode } from "@/lib/codes";
+import { publicCustomer } from "@/lib/customer-public";
 import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError } from "@/lib/api";
@@ -17,7 +21,7 @@ export async function GET() {
     .select()
     .from(customers)
     .orderBy(desc(customers.createdAt));
-  return NextResponse.json({ customers: rows });
+  return NextResponse.json({ customers: rows.map(publicCustomer) });
 }
 
 // POST /api/customers — create (customer:create).
@@ -30,13 +34,33 @@ export async function POST(req: Request) {
   const input = parsed.data;
 
   const id = genId();
+
+  // PAN: stored encrypted. A PAN already on file for someone else is refused.
+  let panCols: ReturnType<typeof panColumns> | null = null;
+  if (input.panNumber) {
+    try {
+      panCols = panColumns(input.panNumber);
+    } catch (err) {
+      console.error(err);
+      return jsonError("PAN storage is not configured on the server (PAN_ENCRYPTION_KEY).", 500);
+    }
+    const dup = await db.query.customers.findFirst({
+      where: eq(customers.panHash, panCols.panHash),
+      columns: { fullName: true },
+    });
+    if (dup) return jsonError(`This PAN is already on file for ${dup.fullName}.`, 409);
+  }
+  const existingCodes = (await db.select({ c: customers.clientCode }).from(customers)).map((r) => r.c);
+
   const row = {
     id,
+    clientCode: nextCode("CL", existingCodes),
+    ...(panCols ?? {}),
+    panExemptReason: panCols ? null : input.noPanReason || null,
     fullName: input.fullName,
     mobile: input.mobile,
     alternateMobile: input.alternateMobile || null,
     email: input.email || null,
-    panMasked: input.panNumber ? maskSensitive(input.panNumber) : null,
     aadhaarMasked: input.aadhaarNumber
       ? maskSensitive(input.aadhaarNumber)
       : null,

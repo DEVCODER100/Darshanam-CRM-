@@ -80,6 +80,7 @@ export const paymentModeEnum = pgEnum("payment_mode", [
   "bank_transfer",
   "rtgs",
   "neft",
+  "imps",
   "upi",
   "card",
   "other",
@@ -134,6 +135,12 @@ export const customers = pgTable(
     aadhaarMasked: text("aadhaar_masked"),
     // Stored MASKED (e.g. "XXXXXXXX1234"). Full value is never persisted (PRD §3).
     aadhaarPanMasked: text("aadhaar_pan_masked"),
+    // Full PAN is stored ENCRYPTED (AES-256-GCM); `panHash` is an HMAC used only
+    // for exact-match search. Without a PAN, `panExemptReason` explains why.
+    panEncrypted: text("pan_encrypted"),
+    panHash: text("pan_hash"),
+    panExemptReason: text("pan_exempt_reason"),
+    clientCode: text("client_code"),
     address: text("address"),
     salesExecutive: text("sales_executive"),
     notes: text("notes"),
@@ -144,6 +151,8 @@ export const customers = pgTable(
   },
   (t) => ({
     nameIdx: index("customers_name_idx").on(t.fullName),
+    panHashIdx: index("customers_pan_hash_idx").on(t.panHash),
+    clientCodeIdx: uniqueIndex("customers_client_code_idx").on(t.clientCode),
   }),
 );
 
@@ -181,6 +190,7 @@ export const bookings = pgTable(
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
     unitId: uuid("unit_id").references(() => units.id, { onDelete: "set null" }),
+    bookingCode: text("booking_code"),
     bookingDate: date("booking_date").notNull(),
     projectName: text("project_name"),
     propertyType: text("property_type").notNull(),
@@ -203,6 +213,7 @@ export const bookings = pgTable(
   },
   (t) => ({
     customerIdx: index("bookings_customer_idx").on(t.customerId),
+    bookingCodeIdx: uniqueIndex("bookings_booking_code_idx").on(t.bookingCode),
   }),
 );
 
@@ -270,6 +281,10 @@ export const payments = pgTable(
     maintenanceAmount: paise("maintenance_amount").notNull().default(sql`0`),
     documentationAmount: paise("documentation_amount").notNull().default(sql`0`),
     paymentFor: text("payment_for"),
+    paymentNumber: text("payment_number"),
+    instrumentDate: date("instrument_date"),
+    instrumentNumber: text("instrument_number"),
+    instrumentBank: text("instrument_bank"),
     mode: paymentModeEnum("mode").notNull().default("bank_transfer"),
     stage: constructionStageEnum("stage"),
     source: text("source").notNull().default("customer"),
@@ -285,6 +300,7 @@ export const payments = pgTable(
   },
   (t) => ({
     bookingIdx: index("payments_booking_idx").on(t.bookingId),
+    paymentNumberIdx: uniqueIndex("payments_payment_number_idx").on(t.paymentNumber),
   }),
 );
 
@@ -299,6 +315,8 @@ export const loans = pgTable("loans", {
   customerContribution: paise("customer_contribution"),
   amountReleased: paise("amount_released").notNull().default(sql`0`),
   bankName: text("bank_name"),
+  branchName: text("branch_name"),
+  branchContact: text("branch_contact"),
   referenceNumber: text("reference_number"),
   sanctionDate: date("sanction_date"),
   approvalDate: date("approval_date"),

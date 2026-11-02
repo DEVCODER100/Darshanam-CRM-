@@ -43,6 +43,8 @@ export async function PUT(req: Request, { params }: Params) {
       ? rupeesToPaise(input.amountReleased)
       : 0n,
     bankName: input.bankName || null,
+    branchName: input.branchName || null,
+    branchContact: input.branchContact || null,
     referenceNumber: input.referenceNumber || null,
     sanctionDate: input.sanctionDate || null,
     approvalDate: input.approvalDate || null,

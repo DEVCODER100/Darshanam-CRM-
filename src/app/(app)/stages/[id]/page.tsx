@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 const MODE_LABELS: Record<string, string> = {
   bank_transfer: "Bank transfer",
   rtgs: "RTGS",
+  imps: "IMPS",
   neft: "NEFT",
   cheque: "Cheque",
   cash: "Cash",

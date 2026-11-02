@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPan } from "./pan-format";
 
 const rupeeString = z
   .string()
@@ -24,18 +25,41 @@ const stage = z.enum([
   "finishing",
 ]);
 
-export const customerCreateSchema = z.object({
+const customerBase = z.object({
   fullName: z.string().trim().min(1),
   mobile: z.string().trim().min(5),
   alternateMobile: z.string().trim().optional().or(z.literal("")),
   email: z.string().trim().email().optional().or(z.literal("")),
   panNumber: z.string().trim().optional().or(z.literal("")),
+  // Only when the customer truly has no PAN (e.g. foreign national). Mandatory otherwise.
+  noPanReason: z.string().trim().optional().or(z.literal("")),
   aadhaarNumber: z.string().trim().optional().or(z.literal("")),
   address: z.string().trim().optional().or(z.literal("")),
   salesExecutive: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
 });
-export const customerUpdateSchema = customerCreateSchema.partial();
+
+const PAN_SHAPE = "PAN must look like ABCDE1234F";
+
+export const customerCreateSchema = customerBase.superRefine((v, ctx) => {
+  const pan = v.panNumber?.trim();
+  if (pan) {
+    if (!isValidPan(pan)) ctx.addIssue({ code: "custom", path: ["panNumber"], message: PAN_SHAPE });
+  } else if (!v.noPanReason?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["panNumber"],
+      message: "PAN is required. If the customer has none, give the reason.",
+    });
+  }
+});
+
+export const customerUpdateSchema = customerBase.partial().superRefine((v, ctx) => {
+  const pan = v.panNumber?.trim();
+  if (pan && !isValidPan(pan)) {
+    ctx.addIssue({ code: "custom", path: ["panNumber"], message: PAN_SHAPE });
+  }
+});
 
 export const bookingCreateSchema = z.object({
   customerId: z.string().uuid(),
@@ -99,12 +123,16 @@ export const paymentCreateSchema = z.object({
   maintenanceAmount: rupeeString.default("0"),
   documentationAmount: rupeeString.default("0"),
   paymentFor: z.string().trim().optional().or(z.literal("")),
+  instrumentDate: isoDate.optional().or(z.literal("")),
+  instrumentNumber: z.string().trim().optional().or(z.literal("")),
+  instrumentBank: z.string().trim().optional().or(z.literal("")),
   mode: z
     .enum([
       "cash",
       "cheque",
       "bank_transfer",
       "rtgs",
+      "imps",
       "neft",
       "upi",
       "card",
@@ -134,6 +162,8 @@ export const loanUpsertSchema = z.object({
   customerContribution: rupeeString.optional().or(z.literal("")),
   amountReleased: rupeeString.optional().or(z.literal("")),
   bankName: z.string().trim().optional().or(z.literal("")),
+  branchName: z.string().trim().optional().or(z.literal("")),
+  branchContact: z.string().trim().optional().or(z.literal("")),
   referenceNumber: z.string().trim().optional().or(z.literal("")),
   sanctionDate: isoDate.optional().or(z.literal("")),
   approvalDate: isoDate.optional().or(z.literal("")),

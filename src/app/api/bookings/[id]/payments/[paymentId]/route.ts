@@ -96,6 +96,12 @@ export async function PATCH(req: Request, { params }: Params) {
     update.documentationAmount = rupeesToPaise(input.documentationAmount);
   if (input.paymentFor !== undefined)
     update.paymentFor = input.paymentFor || null;
+  if (input.instrumentDate !== undefined)
+    update.instrumentDate = input.instrumentDate || null;
+  if (input.instrumentNumber !== undefined)
+    update.instrumentNumber = input.instrumentNumber || null;
+  if (input.instrumentBank !== undefined)
+    update.instrumentBank = input.instrumentBank || null;
   if (input.mode !== undefined) update.mode = input.mode;
   if (input.stage !== undefined) update.stage = input.stage;
   if (input.source !== undefined) update.source = input.source;

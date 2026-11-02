@@ -9,6 +9,7 @@ export interface CustomerFormValues {
   alternateMobile: string;
   email: string;
   panNumber: string;
+  noPanReason: string;
   aadhaarNumber: string;
   address: string;
   salesExecutive: string;
@@ -21,6 +22,7 @@ const empty: CustomerFormValues = {
   alternateMobile: "",
   email: "",
   panNumber: "",
+  noPanReason: "",
   aadhaarNumber: "",
   address: "",
   salesExecutive: "",
@@ -41,6 +43,7 @@ export function CustomerForm({
     ...empty,
     ...initial,
   });
+  const [noPan, setNoPan] = useState(!!initial?.noPanReason);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -58,7 +61,11 @@ export function CustomerForm({
     const response = await fetch(url, {
       method: mode === "create" ? "POST" : "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify({
+        ...values,
+        panNumber: noPan ? "" : values.panNumber,
+        noPanReason: noPan ? values.noPanReason : "",
+      }),
     });
     setBusy(false);
     if (!response.ok) {
@@ -92,9 +99,35 @@ export function CustomerForm({
       <Field label="Email">
         <input className="field" type="email" value={values.email} onChange={set("email")} />
       </Field>
-      <Field label="PAN number (stored masked)">
-        <input className="field" value={values.panNumber} onChange={set("panNumber")} />
-      </Field>
+      <div>
+        <Field label="PAN number" required={!noPan}>
+          <input
+            className="field font-mono uppercase"
+            value={values.panNumber}
+            onChange={set("panNumber")}
+            placeholder="ABCDE1234F"
+            maxLength={10}
+            disabled={noPan}
+            required={!noPan}
+          />
+        </Field>
+        <p className="mt-1 text-xs text-muted">
+          Stored encrypted. Only admin and accountant can see the full number.
+        </p>
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={noPan} onChange={(e) => setNoPan(e.target.checked)} />
+          This customer has no PAN
+        </label>
+        {noPan && (
+          <input
+            className="field mt-2"
+            placeholder="Reason, e.g. foreign national"
+            value={values.noPanReason}
+            onChange={set("noPanReason")}
+            required
+          />
+        )}
+      </div>
       <Field label="Aadhaar number (stored masked)">
         <input className="field" value={values.aadhaarNumber} onChange={set("aadhaarNumber")} />
       </Field>

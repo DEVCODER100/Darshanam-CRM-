@@ -380,6 +380,8 @@ export default async function BookingDetailPage({
                     loan.customerContribution?.toString() ?? null,
                   amountReleased: loan.amountReleased.toString(),
                   bankName: loan.bankName,
+                  branchName: loan.branchName,
+                  branchContact: loan.branchContact,
                   referenceNumber: loan.referenceNumber,
                   sanctionDate: loan.sanctionDate,
                   approvalDate: loan.approvalDate,

@@ -8,6 +8,7 @@ import { parseBody, genId, jsonError } from "@/lib/api";
 import { bookingCreateSchema } from "@/lib/validators";
 import { computeCost } from "@/lib/cost";
 import { rupeesToPaise, percentToBps } from "@/lib/money";
+import { nextCode } from "@/lib/codes";
 
 // GET /api/bookings — list (any authenticated staff).
 export async function GET() {
@@ -81,6 +82,10 @@ export async function POST(req: Request) {
     id: bookingId,
     customerId: input.customerId,
     unitId: unit.id,
+    bookingCode: nextCode(
+      "BI",
+      (await db.select({ c: bookings.bookingCode }).from(bookings)).map((r) => r.c),
+    ),
     bookingDate: input.bookingDate,
     projectName: unit.projectName || null,
     propertyType: unit.unitType,

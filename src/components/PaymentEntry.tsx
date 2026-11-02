@@ -14,6 +14,7 @@ const today = new Date().toISOString().slice(0, 10);
 const MODES = [
   ["bank_transfer", "Bank transfer"],
   ["rtgs", "RTGS"],
+  ["imps", "IMPS"],
   ["neft", "NEFT"],
   ["cheque", "Cheque"],
   ["cash", "Cash"],
@@ -43,6 +44,9 @@ export function PaymentEntry({
   const [documentation, setDocumentation] = useState("");
   const [docTouched, setDocTouched] = useState(false);
   const [paymentFor, setPaymentFor] = useState("");
+  const [instrumentDate, setInstrumentDate] = useState("");
+  const [instrumentNumber, setInstrumentNumber] = useState("");
+  const [instrumentBank, setInstrumentBank] = useState("");
   const [mode, setMode] = useState<(typeof MODES)[number][0]>("bank_transfer");
   const [reference, setReference] = useState("");
   const [source, setSource] = useState<"customer" | "bank">("customer");
@@ -125,6 +129,9 @@ export function PaymentEntry({
         maintenanceAmount: maintenance || "0",
         documentationAmount: documentation || "0",
         paymentFor,
+        instrumentDate,
+        instrumentNumber,
+        instrumentBank,
         mode,
         source,
         overrideStageLimit,
@@ -148,6 +155,9 @@ export function PaymentEntry({
     setDocumentation("");
     setDocTouched(false);
     setPaymentFor("");
+    setInstrumentDate("");
+    setInstrumentNumber("");
+    setInstrumentBank("");
     setReference("");
     setNotes("");
     setFile(null);
@@ -199,6 +209,18 @@ export function PaymentEntry({
             Document charges (₹){docBps > 0 ? ` · ${docBps / 100}% suggested` : ""}
           </span>
           <input className={inp} value={documentation} onChange={(e) => { setDocTouched(true); setDocumentation(e.target.value); }} placeholder="0" />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Instrument date</span>
+          <input type="date" className={inp} value={instrumentDate} onChange={(e) => setInstrumentDate(e.target.value)} />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Cheque / UTR / instrument no.</span>
+          <input className={inp} value={instrumentNumber} onChange={(e) => setInstrumentNumber(e.target.value)} />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Bank (on the instrument)</span>
+          <input className={inp} value={instrumentBank} onChange={(e) => setInstrumentBank(e.target.value)} placeholder="HDFC Bank" />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-muted">Payment for</span>
