@@ -39,6 +39,7 @@ export const customerUpdateSchema = customerCreateSchema.partial();
 
 export const bookingCreateSchema = z.object({
   customerId: z.string().uuid(),
+  unitId: z.string().uuid().optional(),
   bookingDate: isoDate,
   projectName: z.string().trim().optional().or(z.literal("")),
   propertyType: z.enum(["Villa", "Bungalow", "Plot", "Apartment", "Flat", "Shop"]),
@@ -82,6 +83,7 @@ export const scheduleRowSchema = z.object({
   amount: rupeeString,
   gstAmount: rupeeString.default("0"),
   otherChargeAmount: rupeeString.default("0"),
+  documentationAmount: rupeeString.default("0"),
   percentage: percentString.optional().or(z.literal("")),
   label: z.string().trim().optional().or(z.literal("")),
   installmentNumber: z.number().int().positive().optional(),
@@ -95,6 +97,7 @@ export const paymentCreateSchema = z.object({
   amount: rupeeString,
   gstAmount: rupeeString.default("0"),
   maintenanceAmount: rupeeString.default("0"),
+  documentationAmount: rupeeString.default("0"),
   paymentFor: z.string().trim().optional().or(z.literal("")),
   mode: z
     .enum([
@@ -153,4 +156,24 @@ export const documentCreateSchema = z.object({
   fileName: z.string().trim().min(1),
   fileUrl: z.string().url(),
   bookingId: z.string().uuid().nullable().optional(),
+});
+
+export const UNIT_TYPES = ["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"] as const;
+
+// Add one unit (unitNumber) or many at once (count + start -> numbers start..start+count-1).
+export const unitCreateSchema = z
+  .object({
+    projectName: z.string().trim().default(""),
+    unitType: z.enum(UNIT_TYPES),
+    unitNumber: z.string().trim().min(1).optional(),
+    count: z.number().int().min(1).max(500).optional(),
+    start: z.number().int().min(0).default(1),
+  })
+  .refine((v) => v.unitNumber || v.count, {
+    message: "Give a unit number, or a count to create several",
+  });
+
+export const unitPatchSchema = z.object({
+  blocked: z.boolean(),
+  blockReason: z.string().trim().optional().or(z.literal("")),
 });

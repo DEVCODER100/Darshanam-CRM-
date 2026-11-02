@@ -26,13 +26,14 @@ export function receivedSheet(r: ReceivedReport): StatementSheet {
     text("Payment Type"), text("Payment Received From"), text("Payment Mode"),
     text("Receipt No. / Reference No."), text("Bank"),
     money("Basic Amount (Rs)"), money("CGST Received (Rs)"), money("SGST Received (Rs)"),
-    money("Maintenance / Other Charges (Rs)"), money("Total Received (Rs)"),
+    money("Maintenance / Other Charges (Rs)"), money("Document Charges (Rs)"),
+    money("Total Received (Rs)"),
     text("Payment For"), text("Narration"),
   ];
   const rows: Cell[][] = r.rows.map((x) => [
     x.no, formatReportDate(x.date), x.unit, x.customer, x.mobile, x.paymentType,
     x.paidBy, x.mode, x.reference, x.bank, x.basic, x.cgst, x.sgst, x.maintenance,
-    x.total, x.paymentFor, x.narration,
+    x.documentation, x.total, x.paymentFor, x.narration,
   ]);
   const footer: Cell[] = Array(columns.length).fill("");
   footer[1] = "Total";
@@ -40,7 +41,8 @@ export function receivedSheet(r: ReceivedReport): StatementSheet {
   footer[11] = r.totals.cgst;
   footer[12] = r.totals.sgst;
   footer[13] = r.totals.maintenance;
-  footer[14] = r.totals.total;
+  footer[14] = r.totals.documentation;
+  footer[15] = r.totals.total;
   return {
     title: `Payment Received Report From ${formatReportDate(r.from)} To ${formatReportDate(r.to)}`,
     tip: "Total received = basic + GST (CGST + SGST) + maintenance / other charges.",
@@ -56,12 +58,13 @@ export function dueSheet(r: DueReport): StatementSheet {
     num("No."), text("Due Date"), text("Unit Name"), text("Client"), text("Mobile No."),
     text("Payment Type"), text("Installment / Other Charge"), num("Installment Percentage (%)"),
     money("Installment Due (Rs)"), money("CGST Due (Rs)"), money("SGST Due (Rs)"),
-    money("Other Charge Due (Rs)"), money("Total Due (Rs)"), num("Due Since (Days)"),
+    money("Other Charge Due (Rs)"), money("Document Charges Due (Rs)"),
+    money("Total Due (Rs)"), num("Due Since (Days)"),
     text("Bank Name (Loan Processing)"),
   ];
   const rows: Cell[][] = r.rows.map((x) => [
     x.no, formatReportDate(x.dueDate), x.unit, x.customer, x.mobile, x.paymentType,
-    x.instalment, x.percentage ?? "—", x.basic, x.cgst, x.sgst, x.other, x.total,
+    x.instalment, x.percentage ?? "—", x.basic, x.cgst, x.sgst, x.other, x.doc, x.total,
     x.projected ? "—" : x.daysOverdue, x.loanBank,
   ]);
   const footer: Cell[] = Array(columns.length).fill("");
@@ -70,7 +73,8 @@ export function dueSheet(r: DueReport): StatementSheet {
   footer[9] = r.totals.cgst;
   footer[10] = r.totals.sgst;
   footer[11] = r.totals.other;
-  footer[12] = r.totals.total;
+  footer[12] = r.totals.doc;
+  footer[13] = r.totals.total;
   return {
     title: `Payment Due Report From ${formatReportDate(r.from)} To ${formatReportDate(r.to)}`,
     tip: "[Tip: Projected Dues are highlighted in Yellow]",
@@ -92,6 +96,7 @@ export function statementSheet(s: Statement): StatementSheet {
       ["Installment (basic)", "basic"],
       ["GST (CGST + SGST)", "gst"],
       ["Other charges (maintenance)", "other"],
+      ["Document charges", "doc"],
     ];
     const out: Cell[][] = cats.map(([name, k]) => [
       label, name, line.receivable[k], line.received[k], line.due[k],

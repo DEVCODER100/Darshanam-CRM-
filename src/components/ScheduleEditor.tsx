@@ -19,6 +19,7 @@ export interface ScheduleRowInput {
   amount: string; // gross: basic + gst + other
   gstAmount: string;
   otherChargeAmount: string;
+  documentationAmount: string;
   percentage: string; // "" when not set
 }
 
@@ -29,6 +30,8 @@ interface Row {
   gst: string;
   gstTouched: boolean;
   other: string;
+  doc: string;
+  docTouched: boolean;
   percentage: string;
 }
 
@@ -39,6 +42,8 @@ const blankRow = (): Row => ({
   gst: "",
   gstTouched: false,
   other: "",
+  doc: "",
+  docTouched: false,
   percentage: "",
 });
 
@@ -55,12 +60,14 @@ export function ScheduleEditor({
   initial,
   canEdit,
   gstBps = 0,
+  docBps = 0,
   totalPaid = 0n,
 }: {
   bookingId: string;
   initial: ScheduleRowInput[];
   canEdit: boolean;
   gstBps?: number; // booking GST rate in basis points, e.g. 500 = 5%
+  docBps?: number; // booking document-charge rate in basis points, e.g. 590 = 5.9%
   totalPaid?: bigint;
 }) {
   const router = useRouter();
@@ -70,11 +77,16 @@ export function ScheduleEditor({
     dueDate: r.dueDate,
     label: r.label,
     basic: paiseToRupeeString(
-      paise(r.amount) - paise(r.gstAmount) - paise(r.otherChargeAmount),
+      paise(r.amount) -
+        paise(r.gstAmount) -
+        paise(r.otherChargeAmount) -
+        paise(r.documentationAmount),
     ),
     gst: r.gstAmount,
     gstTouched: true, // never overwrite saved GST
     other: r.otherChargeAmount,
+    doc: r.documentationAmount,
+    docTouched: true,
     percentage: r.percentage,
   });
 
@@ -91,17 +103,16 @@ export function ScheduleEditor({
   // Basic changes -> suggest GST at the booking rate until GST is edited by hand.
   function onBasic(i: number, value: string) {
     const r = rows[i];
-    if (!r.gstTouched && gstBps > 0) {
-      patch(i, {
-        basic: value,
-        gst: paiseToRupeeString(applyBasisPoints(paise(value), BigInt(gstBps))),
-      });
-    } else {
-      patch(i, { basic: value });
-    }
+    const next: Partial<Row> = { basic: value };
+    if (!r.gstTouched && gstBps > 0)
+      next.gst = paiseToRupeeString(applyBasisPoints(paise(value), BigInt(gstBps)));
+    if (!r.docTouched && docBps > 0)
+      next.doc = paiseToRupeeString(applyBasisPoints(paise(value), BigInt(docBps)));
+    patch(i, next);
   }
 
-  const gross = (r: Row) => paise(r.basic) + paise(r.gst) + paise(r.other);
+  const gross = (r: Row) =>
+    paise(r.basic) + paise(r.gst) + paise(r.other) + paise(r.doc);
   const sum = (f: (r: Row) => bigint) => rows.reduce((s, r) => s + f(r), 0n);
 
   async function save() {
@@ -116,6 +127,7 @@ export function ScheduleEditor({
           amount: paiseToRupeeString(gross(r)),
           gstAmount: r.gst || "0",
           otherChargeAmount: r.other || "0",
+          documentationAmount: r.doc || "0",
           percentage: r.percentage,
         })),
     };
@@ -152,6 +164,7 @@ export function ScheduleEditor({
                   <th className="py-1 text-right font-medium">Basic</th>
                   <th className="py-1 text-right font-medium">GST</th>
                   <th className="py-1 text-right font-medium">Other</th>
+                  <th className="py-1 text-right font-medium">Doc</th>
                   <th className="py-1 text-right font-medium">Total</th>
                   <th className="py-1 text-right font-medium">Paid</th>
                   <th className="py-1 text-right font-medium">Remaining</th>
@@ -163,6 +176,7 @@ export function ScheduleEditor({
                   const amount = paise(r.amount);
                   const gst = paise(r.gstAmount);
                   const other = paise(r.otherChargeAmount);
+                  const doc = paise(r.documentationAmount);
                   const paid = unallocatedPaid > amount ? amount : unallocatedPaid;
                   unallocatedPaid -= paid;
                   const remaining = amount - paid;
@@ -181,9 +195,10 @@ export function ScheduleEditor({
                       <td className="py-1 text-right text-muted">
                         {r.percentage ? `${r.percentage}%` : "—"}
                       </td>
-                      <td className="money py-1 text-right">{formatINR(amount - gst - other)}</td>
+                      <td className="money py-1 text-right">{formatINR(amount - gst - other - doc)}</td>
                       <td className="money py-1 text-right text-muted">{formatINR(gst)}</td>
                       <td className="money py-1 text-right text-muted">{formatINR(other)}</td>
+                      <td className="money py-1 text-right text-muted">{formatINR(doc)}</td>
                       <td className="money py-1 text-right font-medium">{formatINR(amount)}</td>
                       <td className="money py-1 text-right text-paid">{formatINR(paid)}</td>
                       <td className="money py-1 text-right">{formatINR(remaining)}</td>
@@ -249,6 +264,10 @@ export function ScheduleEditor({
             Other charges (₹)
             <input className={inp} value={r.other} placeholder="0" onChange={(e) => patch(i, { other: e.target.value })} />
           </label>
+          <label className="text-xs text-muted">
+            Document charges (₹){docBps > 0 ? ` · ${bpsToPercentString(BigInt(docBps))}%` : ""}
+            <input className={inp} value={r.doc} placeholder="0" onChange={(e) => patch(i, { doc: e.target.value, docTouched: true })} />
+          </label>
           <span className="self-center text-xs text-muted">
             Total <span className="money font-medium text-ink">{formatINR(gross(r))}</span>
           </span>
@@ -267,6 +286,7 @@ export function ScheduleEditor({
         <span>Basic <span className="money">{formatINR(sum((r) => paise(r.basic)))}</span></span>
         <span>GST <span className="money">{formatINR(sum((r) => paise(r.gst)))}</span></span>
         <span>Other <span className="money">{formatINR(sum((r) => paise(r.other)))}</span></span>
+        <span>Doc <span className="money">{formatINR(sum((r) => paise(r.doc)))}</span></span>
         <span>Plan total <span className="money font-medium text-ink">{formatINR(sum(gross))}</span></span>
       </div>
       <div className="flex gap-2">

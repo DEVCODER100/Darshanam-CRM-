@@ -56,6 +56,7 @@ describe("RBAC capability matrix — admin-only editing", () => {
       "payment:delete",
       "loan:edit",
       "user:manage",
+      "unit:manage",
     ] as const;
     for (const cap of mutating) {
       expect(can("admin", cap)).toBe(true);

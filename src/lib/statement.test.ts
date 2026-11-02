@@ -19,14 +19,26 @@ import { rupeesToPaise } from "./money";
 const R = (rupees: string) => rupeesToPaise(rupees);
 const L = (lakh: number) => rupeesToPaise(String(lakh * 100000));
 
-const row = (id: string, dueDate: string, basic: bigint, gst = 0n, other = 0n): ScheduleItem => ({
+const row = (
+  id: string,
+  dueDate: string,
+  basic: bigint,
+  gst = 0n,
+  other = 0n,
+  doc = 0n,
+): ScheduleItem => ({
   id,
   dueDate,
   label: id,
   percentageBps: null,
-  comps: { basic, gst, other },
+  comps: { basic, gst, other, doc },
 });
-const pay = (basic: bigint, gst = 0n, other = 0n): Components => ({ basic, gst, other });
+const pay = (basic: bigint, gst = 0n, other = 0n, doc = 0n): Components => ({
+  basic,
+  gst,
+  other,
+  doc,
+});
 
 describe("GST split and totals (numbers from the Payment Due report)", () => {
   it("₹18,75,000 + 5% GST -> CGST ₹46,875 + SGST ₹46,875 = ₹19,68,750", () => {
@@ -34,7 +46,7 @@ describe("GST split and totals (numbers from the Payment Due report)", () => {
     const { cgst, sgst } = splitGst(gst);
     expect(cgst).toBe(R("46875"));
     expect(sgst).toBe(R("46875"));
-    expect(sumComponents({ basic: R("1875000"), gst, other: 0n })).toBe(R("1968750"));
+    expect(sumComponents({ basic: R("1875000"), gst, other: 0n, doc: 0n })).toBe(R("1968750"));
   });
   it("an odd paisa goes to SGST", () => {
     expect(splitGst(5n)).toEqual({ cgst: 2n, sgst: 3n });
@@ -44,22 +56,39 @@ describe("GST split and totals (numbers from the Payment Due report)", () => {
 describe("component helpers", () => {
   it("legacy schedule row with no split counts as all basic", () => {
     const c = scheduleComponents({
-      amount: L(60), basicAmount: 0n, gstAmount: 0n, otherChargeAmount: 0n,
+      amount: L(60), basicAmount: 0n, gstAmount: 0n, otherChargeAmount: 0n, documentationAmount: 0n,
     });
-    expect(c).toEqual({ basic: L(60), gst: 0n, other: 0n });
+    expect(c).toEqual({ basic: L(60), gst: 0n, other: 0n, doc: 0n });
   });
   it("explicit split is used as given", () => {
     const c = scheduleComponents({
-      amount: R("1968750"), basicAmount: R("1875000"), gstAmount: R("93750"), otherChargeAmount: 0n,
+      amount: R("1968750"), basicAmount: R("1875000"), gstAmount: R("93750"), otherChargeAmount: 0n, documentationAmount: 0n,
     });
     expect(c.basic).toBe(R("1875000"));
     expect(c.gst).toBe(R("93750"));
   });
   it("payment basic = total − gst − maintenance", () => {
     const c = paymentComponents({
-      amount: R("1050000"), gstAmount: R("50000"), maintenanceAmount: R("100000"),
+      amount: R("1050000"), gstAmount: R("50000"), maintenanceAmount: R("100000"), documentationAmount: 0n,
     });
-    expect(c).toEqual({ basic: R("900000"), gst: R("50000"), other: R("100000") });
+    expect(c).toEqual({ basic: R("900000"), gst: R("50000"), other: R("100000"), doc: 0n });
+  });
+});
+
+describe("document charges are their own component", () => {
+  it("5.9% of ₹1.2 Cr = ₹7,08,000 documentation, tracked separately", () => {
+    const schedule = [row("d", "2026-09-01", L(0), 0n, 0n, R("708000"))];
+    const part = bookingStatement(schedule, [pay(0n, 0n, 0n, R("200000"))], "2026-09-30");
+    expect(part.receivable.doc).toBe(R("708000"));
+    expect(part.received.doc).toBe(R("200000"));
+    expect(part.due.doc).toBe(R("508000"));
+  });
+  it("payment basic excludes documentation", () => {
+    const c = paymentComponents({
+      amount: R("1000000"), gstAmount: R("50000"), maintenanceAmount: 0n, documentationAmount: R("59000"),
+    });
+    expect(c.basic).toBe(R("891000"));
+    expect(c.doc).toBe(R("59000"));
   });
 });
 

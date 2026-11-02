@@ -19,6 +19,7 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /** Money helper: bigint paise column. */
@@ -99,6 +100,7 @@ export const auditEntityEnum = pgEnum("audit_entity", [
   "loan",
   "document",
   "user",
+  "unit",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,32 @@ export const customers = pgTable(
   }),
 );
 
+// A unit (bungalow, flat, shop...) exists before anyone books it, so the unit
+// board can show every unit. "Booked" is NOT stored: a unit is booked when a
+// booking points at it. Only `blocked` is set by hand.
+export const units = pgTable(
+  "units",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectName: text("project_name").notNull().default(""),
+    unitType: text("unit_type").notNull(),
+    unitNumber: text("unit_number").notNull(),
+    blocked: boolean("blocked").notNull().default(false),
+    blockReason: text("block_reason"),
+    blockedAt: timestamp("blocked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqueUnit: uniqueIndex("units_unique_idx").on(
+      t.projectName,
+      t.unitType,
+      t.unitNumber,
+    ),
+  }),
+);
+
 export const bookings = pgTable(
   "bookings",
   {
@@ -152,6 +180,7 @@ export const bookings = pgTable(
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
+    unitId: uuid("unit_id").references(() => units.id, { onDelete: "set null" }),
     bookingDate: date("booking_date").notNull(),
     projectName: text("project_name"),
     propertyType: text("property_type").notNull(),
@@ -216,6 +245,7 @@ export const paymentSchedule = pgTable(
     basicAmount: paise("basic_amount").notNull().default(sql`0`),
     gstAmount: paise("gst_amount").notNull().default(sql`0`),
     otherChargeAmount: paise("other_charge_amount").notNull().default(sql`0`),
+    documentationAmount: paise("documentation_amount").notNull().default(sql`0`),
     percentageBps: integer("percentage_bps"),
     label: text("label"),
     installmentNumber: integer("installment_number"),
@@ -238,6 +268,7 @@ export const payments = pgTable(
     amount: paise("amount").notNull(),
     gstAmount: paise("gst_amount").notNull().default(sql`0`),
     maintenanceAmount: paise("maintenance_amount").notNull().default(sql`0`),
+    documentationAmount: paise("documentation_amount").notNull().default(sql`0`),
     paymentFor: text("payment_for"),
     mode: paymentModeEnum("mode").notNull().default("bank_transfer"),
     stage: constructionStageEnum("stage"),
@@ -349,6 +380,7 @@ export type PaymentScheduleRow = typeof paymentSchedule.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Loan = typeof loans.$inferSelect;
 export type StageHistoryRow = typeof stageHistory.$inferSelect;
+export type Unit = typeof units.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type AuditLogRow = typeof auditLog.$inferSelect;
 

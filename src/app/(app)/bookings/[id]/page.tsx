@@ -45,7 +45,8 @@ export default async function BookingDetailPage({
 
   // GST owed proportional to basic collected (basic = amount − gstAmount per payment).
   const basicCollected = payments.reduce(
-    (s, p) => s + (p.amount - p.gstAmount - p.maintenanceAmount),
+    (s, p) =>
+      s + (p.amount - p.gstAmount - p.maintenanceAmount - p.documentationAmount),
     0n,
   );
   const gstCollected = payments.reduce((s, p) => s + p.gstAmount, 0n);
@@ -251,6 +252,7 @@ export default async function BookingDetailPage({
             bookingId={booking.id}
             canEdit={!!user && can(user.role, "schedule:edit")}
             gstBps={cost?.gstPercentBps ?? 0}
+            docBps={cost?.documentationPercentBps ?? 0}
             totalPaid={o.totalPaid}
             initial={schedule.map((s) => ({
               dueDate: s.dueDate,
@@ -258,6 +260,7 @@ export default async function BookingDetailPage({
               label: s.label ?? "",
               gstAmount: paiseToRupeeString(s.gstAmount),
               otherChargeAmount: paiseToRupeeString(s.otherChargeAmount),
+              documentationAmount: paiseToRupeeString(s.documentationAmount),
               percentage: s.percentageBps
                 ? bpsToPercentString(BigInt(s.percentageBps))
                 : "",
@@ -270,7 +273,7 @@ export default async function BookingDetailPage({
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-medium text-ink">Payments received</h2>
-          <PaymentEntry bookingId={booking.id} canAdd={!!user && can(user.role, "payment:create")} gstBps={cost?.gstPercentBps ?? 0} />
+          <PaymentEntry bookingId={booking.id} canAdd={!!user && can(user.role, "payment:create")} gstBps={cost?.gstPercentBps ?? 0} docBps={cost?.documentationPercentBps ?? 0} />
         </div>
         {payments.length === 0 ? (
           <p className="text-sm text-muted">No payments recorded.</p>
@@ -283,6 +286,7 @@ export default async function BookingDetailPage({
                   <th className="text-right">Basic</th>
                   <th className="text-right">GST</th>
                   <th className="text-right">Other</th>
+                  <th className="text-right">Doc</th>
                   <th className="text-right">Total</th>
                   <th>Mode</th>
                   <th>Source</th>
@@ -295,9 +299,10 @@ export default async function BookingDetailPage({
                 {payments.map((p) => (
                   <tr key={p.id}>
                     <td>{p.paymentDate}</td>
-                    <td className="money text-right">{formatINR(p.amount - p.gstAmount - p.maintenanceAmount)}</td>
+                    <td className="money text-right">{formatINR(p.amount - p.gstAmount - p.maintenanceAmount - p.documentationAmount)}</td>
                     <td className="money text-right text-muted">{formatINR(p.gstAmount)}</td>
                     <td className="money text-right text-muted">{formatINR(p.maintenanceAmount)}</td>
+                    <td className="money text-right text-muted">{formatINR(p.documentationAmount)}</td>
                     <td className="money text-right font-medium text-paid">{formatINR(p.amount)}</td>
                     <td><span className="pill-neutral">{MODE_LABELS[p.mode] ?? p.mode}</span></td>
                     <td>{p.source === "bank" ? "Bank release" : "Customer"}</td>

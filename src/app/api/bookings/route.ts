@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, propertyCosts, auditLog } from "@/db/schema";
+import { bookings, propertyCosts, auditLog, units } from "@/db/schema";
 import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError } from "@/lib/api";
@@ -29,6 +29,45 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
+  const bookingId = genId();
+
+  // Every booking belongs to one unit. Use the chosen unit, or find/create the
+  // unit that matches the typed project + type + number.
+  let unit = input.unitId
+    ? await db.query.units.findFirst({ where: eq(units.id, input.unitId) })
+    : undefined;
+  if (input.unitId && !unit) return jsonError("Unit not found", 404);
+  if (!unit) {
+    const project = input.projectName || "";
+    const number = input.propertyNumber || `(${bookingId.slice(0, 6)})`;
+    unit = (
+      await db
+        .select()
+        .from(units)
+        .where(
+          and(
+            eq(units.projectName, project),
+            eq(units.unitType, input.propertyType),
+            eq(units.unitNumber, number),
+          ),
+        )
+    )[0];
+    if (!unit) {
+      [unit] = await db
+        .insert(units)
+        .values({ projectName: project, unitType: input.propertyType, unitNumber: number })
+        .returning();
+    }
+  }
+  if (unit.blocked) {
+    return jsonError("This unit is blocked. Release it first, then book it.", 409);
+  }
+  const taken = await db.query.bookings.findFirst({
+    where: eq(bookings.unitId, unit.id),
+    columns: { id: true },
+  });
+  if (taken) return jsonError("This unit is already booked.", 409);
+
   const cost = computeCost({
     baseCost: rupeesToPaise(input.baseCost),
     extraCharges: rupeesToPaise(input.extraCharges),
@@ -38,14 +77,14 @@ export async function POST(req: Request) {
     documentationPercentBps: Number(percentToBps(input.documentationPercent)),
   });
 
-  const bookingId = genId();
   const bookingRow = {
     id: bookingId,
     customerId: input.customerId,
+    unitId: unit.id,
     bookingDate: input.bookingDate,
-    projectName: input.projectName || null,
-    propertyType: input.propertyType,
-    propertyNumber: input.propertyNumber || null,
+    projectName: unit.projectName || null,
+    propertyType: unit.unitType,
+    propertyNumber: unit.unitNumber.startsWith("(") ? null : unit.unitNumber,
     bookingAddress: input.bookingAddress || null,
     unitStatus: input.unitStatus,
     paymentType: input.paymentType,

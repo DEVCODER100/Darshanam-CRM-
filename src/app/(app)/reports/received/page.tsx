@@ -32,11 +32,12 @@ export default async function ReceivedReportPage({
 
       <MonthBar basePath="/reports/received" month={month} exportType="received" />
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Stat label="Basic received" value={formatINR(t.basic, { paise2dp: false })} />
         <Stat label="CGST received" value={formatINR(t.cgst, { paise2dp: false })} />
         <Stat label="SGST received" value={formatINR(t.sgst, { paise2dp: false })} />
         <Stat label="Other charges" value={formatINR(t.maintenance, { paise2dp: false })} />
+        <Stat label="Document charges" value={formatINR(t.documentation, { paise2dp: false })} />
         <Stat label="Total received" value={formatINR(t.total, { paise2dp: false })} tone="paid" />
       </section>
 
@@ -51,7 +52,7 @@ export default async function ReceivedReportPage({
                 <th>Payment type</th><th>From</th><th>Mode</th><th>Reference</th>
                 <th className="text-right">Basic</th><th className="text-right">CGST</th>
                 <th className="text-right">SGST</th><th className="text-right">Other</th>
-                <th className="text-right">Total</th><th>Payment for</th>
+                <th className="text-right">Doc</th><th className="text-right">Total</th><th>Payment for</th>
               </tr>
             </thead>
             <tbody>
@@ -72,6 +73,7 @@ export default async function ReceivedReportPage({
                   <td className="money text-right text-muted">{formatINR(r.cgst)}</td>
                   <td className="money text-right text-muted">{formatINR(r.sgst)}</td>
                   <td className="money text-right text-muted">{formatINR(r.maintenance)}</td>
+                  <td className="money text-right text-muted">{formatINR(r.documentation)}</td>
                   <td className="money text-right font-medium text-paid">{formatINR(r.total)}</td>
                   <td className="text-muted">{r.paymentFor}</td>
                 </tr>
@@ -84,6 +86,7 @@ export default async function ReceivedReportPage({
                 <td className="money text-right">{formatINR(t.cgst)}</td>
                 <td className="money text-right">{formatINR(t.sgst)}</td>
                 <td className="money text-right">{formatINR(t.maintenance)}</td>
+                <td className="money text-right">{formatINR(t.documentation)}</td>
                 <td className="money text-right">{formatINR(t.total)}</td>
                 <td />
               </tr>

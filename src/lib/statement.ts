@@ -1,8 +1,8 @@
 /**
  * statement.ts — month-wise received/due statement maths (pure, no DB).
  *
- * Money is split into three components: basic (installment), GST and other
- * charges (maintenance). Each component is its own ledger:
+ * Money is split into four components: basic (installment), GST, other charges
+ * (maintenance) and document charges. Each component is its own ledger:
  *   due(component) = max(Σ scheduled up to date − Σ received, 0)
  * Per-instalment dues are a FIFO display allocation of what was received, in
  * due-date order, so a short payment leaves the OLDEST instalment partly open.
@@ -13,21 +13,24 @@ export interface Components {
   basic: bigint;
   gst: bigint;
   other: bigint;
+  doc: bigint;
 }
 
-export const ZERO: Components = { basic: 0n, gst: 0n, other: 0n };
+export const ZERO: Components = { basic: 0n, gst: 0n, other: 0n, doc: 0n };
 
-export const sumComponents = (c: Components): bigint => c.basic + c.gst + c.other;
+export const sumComponents = (c: Components): bigint =>
+  c.basic + c.gst + c.other + c.doc;
 
 const add = (a: Components, b: Components): Components => ({
   basic: a.basic + b.basic,
   gst: a.gst + b.gst,
   other: a.other + b.other,
+  doc: a.doc + b.doc,
 });
 
 const nonNeg = (n: bigint): bigint => (n > 0n ? n : 0n);
 
-const KEYS = ["basic", "gst", "other"] as const;
+const KEYS = ["basic", "gst", "other", "doc"] as const;
 
 /** Split GST into CGST + SGST (equal halves; an odd paisa goes to SGST). */
 export function splitGst(gst: bigint): { cgst: bigint; sgst: bigint } {
@@ -41,26 +44,33 @@ export function scheduleComponents(row: {
   basicAmount: bigint;
   gstAmount: bigint;
   otherChargeAmount: bigint;
+  documentationAmount: bigint;
 }): Components {
-  const split = row.basicAmount + row.gstAmount + row.otherChargeAmount;
-  if (split === 0n) return { basic: row.amount, gst: 0n, other: 0n };
+  const split =
+    row.basicAmount + row.gstAmount + row.otherChargeAmount + row.documentationAmount;
+  if (split === 0n) return { basic: row.amount, gst: 0n, other: 0n, doc: 0n };
   return {
     basic: row.basicAmount,
     gst: row.gstAmount,
     other: row.otherChargeAmount,
+    doc: row.documentationAmount,
   };
 }
 
-/** Components of a payment: basic = total − gst − maintenance (never negative). */
+/** Components of a payment: basic = total − gst − maintenance − documentation (never negative). */
 export function paymentComponents(p: {
   amount: bigint;
   gstAmount: bigint;
   maintenanceAmount: bigint;
+  documentationAmount: bigint;
 }): Components {
   return {
-    basic: nonNeg(p.amount - p.gstAmount - p.maintenanceAmount),
+    basic: nonNeg(
+      p.amount - p.gstAmount - p.maintenanceAmount - p.documentationAmount,
+    ),
     gst: p.gstAmount,
     other: p.maintenanceAmount,
+    doc: p.documentationAmount,
   };
 }
 
@@ -99,6 +109,7 @@ export function bookingStatement(
       basic: nonNeg(dueTillDate.basic - received.basic),
       gst: nonNeg(dueTillDate.gst - received.gst),
       other: nonNeg(dueTillDate.other - received.other),
+      doc: nonNeg(dueTillDate.doc - received.doc),
     },
   };
 }
@@ -131,8 +142,8 @@ export function rowDues(
   const remaining: Components = { ...received };
 
   return ordered.map((item) => {
-    const paid: Components = { basic: 0n, gst: 0n, other: 0n };
-    const due: Components = { basic: 0n, gst: 0n, other: 0n };
+    const paid: Components = { basic: 0n, gst: 0n, other: 0n, doc: 0n };
+    const due: Components = { basic: 0n, gst: 0n, other: 0n, doc: 0n };
     for (const k of KEYS) {
       const take = remaining[k] < item.comps[k] ? remaining[k] : item.comps[k];
       paid[k] = take;

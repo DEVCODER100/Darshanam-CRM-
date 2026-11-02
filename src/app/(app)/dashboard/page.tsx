@@ -1,160 +1,167 @@
 import Link from "next/link";
-import { getDashboardData } from "@/lib/dashboard";
-import { formatINR } from "@/lib/money";
+import { getBoard, getUnitPanel, type UnitStatus } from "@/lib/unit-board";
+import { getCurrentUser } from "@/lib/rbac";
+import { can } from "@/lib/permissions";
+import { UnitAdd } from "@/components/UnitAdd";
+import { UnitPanel } from "@/components/UnitPanel";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const d = await getDashboardData();
+const STATUSES: { key: UnitStatus; label: string; dot: string }[] = [
+  { key: "booked", label: "Booked", dot: "bg-danger" },
+  { key: "available", label: "Available", dot: "bg-paid" },
+  { key: "blocked", label: "Blocked", dot: "bg-slate2" },
+];
+
+const BOX: Record<UnitStatus, string> = {
+  booked: "border-danger/30 bg-danger-bg text-danger",
+  available: "border-paid/30 bg-paid-bg text-paid",
+  blocked: "border-hairline bg-inkbg text-slate2",
+};
+
+type Params = { unit?: string; type?: string; status?: string; q?: string; project?: string };
+
+export default async function DashboardPage({ searchParams }: { searchParams: Params }) {
+  const user = await getCurrentUser();
+  const board = await getBoard();
+
+  const status = STATUSES.find((s) => s.key === searchParams.status)?.key;
+  const type = board.types.includes(searchParams.type ?? "") ? searchParams.type : undefined;
+  const q = searchParams.q?.trim().toLowerCase();
+
+  const href = (patch: Partial<Params>) => {
+    const merged = { ...searchParams, ...patch };
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
+    const s = p.toString();
+    return s ? `/dashboard?${s}` : "/dashboard";
+  };
+
+  const visible = board.units.filter(
+    (u) =>
+      (!status || u.status === status) &&
+      (!type || u.unitType === type) &&
+      (!q || u.name.toLowerCase().includes(q) || (u.owner ?? "").toLowerCase().includes(q)),
+  );
+
+  // Group by project when there is more than one.
+  const groups = new Map<string, typeof visible>();
+  for (const u of visible) {
+    const list = groups.get(u.projectName) ?? [];
+    list.push(u);
+    groups.set(u.projectName, list);
+  }
+  const showHeadings = board.projects.length > 0;
+
+  const panel = searchParams.unit ? await getUnitPanel(searchParams.unit) : null;
+  const access = {
+    canBook: !!user && can(user.role, "booking:create"),
+    canPay: !!user && can(user.role, "payment:create"),
+    canEditBooking: !!user && can(user.role, "booking:edit"),
+    canManageUnits: !!user && can(user.role, "unit:manage"),
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-medium">Dashboard</h1>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/calendar" className="text-brass-dark hover:underline">Calendar →</Link>
-          <Link href="/reports/gst" className="text-brass-dark hover:underline">GST tracker →</Link>
-          <Link href="/reports" className="text-brass-dark hover:underline">Reports →</Link>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-medium">Unit board</h1>
+          <p className="text-sm text-muted">Click a unit to see its owner, payments and dues.</p>
         </div>
+        {access.canManageUnits && <UnitAdd />}
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card label="Total customers" value={String(d.totalCustomers)} href="/customers" />
-        <Card label="Total bookings" value={String(d.totalBookings)} href="/bookings" />
-        <Card label="Total sales value" value={formatINR(d.totalSalesValue, { paise2dp: false })} />
-        <Card label="Total receivable" value={formatINR(d.totalReceivable, { paise2dp: false })} />
-        <Card label="Total received" value={formatINR(d.totalReceived, { paise2dp: false })} href="/reports/monthly" />
-        <Card label="Total outstanding" value={formatINR(d.totalOutstanding, { paise2dp: false })} accent="amber" href="/reports/outstanding" />
-        <Card label="Pending loan amount" value={formatINR(d.pendingLoanAmount, { paise2dp: false })} href="/reports/loan" />
-        <Card label="Active loans" value={String(d.activeLoans)} href="/reports/loan" />
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Payment breakdown</h2>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <BreakdownCard label="Self finance" data={d.paymentBreakdown.self_finance} />
-          <BreakdownCard label="Bank loan" data={d.paymentBreakdown.bank_loan} />
-          <BreakdownCard label="Installment" data={d.paymentBreakdown.installment} />
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-medium">Stage-wise bank disbursement</h2>
-          <Link href="/stages" className="text-sm text-brass-dark hover:underline">
-            Stage tracking →
+      {/* Legend + status filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        {STATUSES.map((s) => (
+          <Link
+            key={s.key}
+            href={href({ status: status === s.key ? undefined : s.key })}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+              status === s.key ? "border-ink bg-surface font-medium" : "border-hairline bg-surface text-muted hover:text-ink"
+            }`}
+          >
+            <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
+            {s.label} · {board.counts[s.key]}
           </Link>
+        ))}
+        <span className="text-sm text-muted">{board.counts.total} units</span>
+      </div>
+
+      {/* Type filter + search */}
+      <div className="flex flex-wrap items-center gap-2">
+        {board.types.length > 1 && (
+          <>
+            <Link
+              href={href({ type: undefined })}
+              className={`rounded-md px-3 py-1 text-sm ${!type ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink border border-hairline"}`}
+            >
+              All types
+            </Link>
+            {board.types.map((t) => (
+              <Link
+                key={t}
+                href={href({ type: type === t ? undefined : t })}
+                className={`rounded-md px-3 py-1 text-sm ${type === t ? "bg-ink text-white" : "bg-surface text-muted hover:text-ink border border-hairline"}`}
+              >
+                {t}
+              </Link>
+            ))}
+          </>
+        )}
+        <form method="get" className="ml-auto flex gap-2">
+          {status && <input type="hidden" name="status" value={status} />}
+          {type && <input type="hidden" name="type" value={type} />}
+          <input name="q" defaultValue={searchParams.q} placeholder="Find a unit or owner" className="field w-56" />
+          <button className="btn-secondary px-3 py-1.5">Find</button>
+        </form>
+      </div>
+
+      <div className={panel ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_470px]" : ""}>
+        <div className="space-y-5">
+          {board.counts.total === 0 ? (
+            <p className="card p-6 text-sm text-muted">
+              No units yet.{" "}
+              {access.canManageUnits
+                ? "Use “Add units” above, for example 20 bungalows."
+                : "Ask an admin to add the units."}
+            </p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted">No units match these filters.</p>
+          ) : (
+            [...groups.entries()].map(([project, list]) => (
+              <section key={project || "all"}>
+                {showHeadings && (
+                  <h2 className="mb-2 text-sm font-medium text-muted">{project || "No project"}</h2>
+                )}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  {list.map((u) => (
+                    <Link
+                      key={u.id}
+                      href={href({ unit: u.id })}
+                      scroll={false}
+                      className={`block rounded-md border px-3 py-2.5 transition hover:shadow-pop ${BOX[u.status]} ${
+                        searchParams.unit === u.id ? "ring-2 ring-ink" : ""
+                      }`}
+                    >
+                      <p className="truncate text-sm font-medium">{u.name}</p>
+                      <p className="truncate text-xs">
+                        {u.status === "booked" ? u.owner : u.status === "blocked" ? "Blocked" : "Available"}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))
+          )}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card label="Stage customers" value={String(d.stageMetrics.customers)} href="/stages" />
-          <Card label="Pending bank release" value={formatINR(d.stageMetrics.pendingRelease, { paise2dp: false })} accent="amber" href="/stages" />
-          <Card label="Released amount" value={formatINR(d.stageMetrics.released, { paise2dp: false })} href="/stages" />
-          <Card label="Remaining amount" value={formatINR(d.stageMetrics.remaining, { paise2dp: false })} href="/stages" />
-        </div>
-      </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Alerts</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Alert label="Overdue payments" count={d.alerts.overduePayments} tone="amber" href="/alerts/overdue" />
-          <Alert label="Due this month" count={d.alerts.dueThisMonth} tone="blue" href="/alerts/due-this-month" />
-          <Alert label="Loan docs pending" count={d.alerts.loanDocsPending} tone="gray" href="/alerts/loan-docs" />
-          <Alert label="Loan approval pending" count={d.alerts.loanApprovalPending} tone="gray" href="/alerts/loan-approval" />
-        </div>
-      </section>
+        {panel && (
+          <aside className="xl:sticky xl:top-4 xl:self-start">
+            <UnitPanel data={panel} access={access} closeHref={href({ unit: undefined })} />
+          </aside>
+        )}
+      </div>
     </div>
-  );
-}
-
-function BreakdownCard({
-  label,
-  data,
-}: {
-  label: string;
-  data: { receivable: bigint; received: bigint; due: bigint };
-}) {
-  return (
-    <div className="card p-4">
-      <h3 className="mb-3 font-medium">{label}</h3>
-      <dl className="space-y-2 text-sm">
-        <MoneyLine label="Receivable" value={data.receivable} />
-        <MoneyLine label="Received" value={data.received} tone="paid" />
-        <MoneyLine label="Due" value={data.due} tone="due" />
-      </dl>
-    </div>
-  );
-}
-
-function MoneyLine({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: bigint;
-  tone?: "paid" | "due";
-}) {
-  return (
-    <div className="flex justify-between">
-      <dt className="text-muted">{label}</dt>
-      <dd
-        className={`money font-medium ${
-          tone === "paid" ? "text-paid" : tone === "due" ? "text-due" : ""
-        }`}
-      >
-        {formatINR(value, { paise2dp: false })}
-      </dd>
-    </div>
-  );
-}
-
-function Card({
-  label,
-  value,
-  accent,
-  href,
-}: {
-  label: string;
-  value: string;
-  accent?: "amber";
-  href?: string;
-}) {
-  const cls = `block rounded-lg border p-4 shadow-card ${accent === "amber" ? "border-l-[3px] border-l-due border-hairline bg-surface" : "border-hairline bg-surface"} ${href ? "transition hover:shadow-pop hover:border-brass/40" : ""}`;
-  const inner = (
-    <>
-      <p className="text-xs tracking-wide text-muted">{label}</p>
-      <p className="money mt-1 text-xl font-medium text-ink">{value}</p>
-    </>
-  );
-  return href ? <Link href={href} className={cls}>{inner}</Link> : <div className={cls}>{inner}</div>;
-}
-
-function Alert({
-  label,
-  count,
-  tone,
-  href,
-}: {
-  label: string;
-  count: number;
-  tone: "amber" | "blue" | "gray";
-  href: string;
-}) {
-  const tones = {
-    amber: "border-due/30 bg-due-bg text-due",
-    blue: "border-hairline bg-inkbg text-slate2",
-    gray: "border-hairline bg-surface text-ink",
-  } as const;
-  return (
-    <Link
-      href={href}
-      className={`block rounded-lg border p-4 shadow-card transition hover:shadow-pop ${tones[tone]}`}
-    >
-      <p className="money text-2xl font-medium">{count}</p>
-      <p className="flex items-center justify-between text-sm">
-        {label}
-        <span aria-hidden>→</span>
-      </p>
-    </Link>
   );
 }

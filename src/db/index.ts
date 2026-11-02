@@ -13,7 +13,9 @@ function getDb(): DB {
   if (cached) return cached;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  cached = drizzle(neon(url), { schema });
+  // Next.js caches fetch() responses by default, and the Neon HTTP driver is
+  // fetch-based, so without this a page can replay an old query result forever.
+  cached = drizzle(neon(url, { fetchOptions: { cache: "no-store" } }), { schema });
   return cached;
 }
 

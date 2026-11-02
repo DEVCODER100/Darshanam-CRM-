@@ -45,6 +45,7 @@ export default async function StatementPage({
           <Stat label="GST due" value={m.due.gst} tone="due" />
           <Stat label="Installment due" value={m.due.basic} tone="due" />
           <Stat label="Other charges due" value={m.due.other} tone="due" />
+          <Stat label="Document charges due" value={m.due.doc} tone="due" />
           <Stat label="Total received" value={sumComponents(m.received)} tone="paid" />
           <Stat label="Total due" value={sumComponents(m.due)} tone="due" />
         </div>
@@ -61,6 +62,7 @@ function Block({ title, line }: { title: string; line: StatementLine }) {
     { label: "Installment (basic)", k: "basic" },
     { label: "GST (CGST + SGST)", k: "gst" },
     { label: "Other charges (maintenance)", k: "other" },
+    { label: "Document charges", k: "doc" },
   ];
   return (
     <section>

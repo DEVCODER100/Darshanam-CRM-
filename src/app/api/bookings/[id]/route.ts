@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, auditLog } from "@/db/schema";
+import { bookings, auditLog, units } from "@/db/schema";
 import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, jsonError, serializeBigInt } from "@/lib/api";
@@ -68,6 +68,25 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const after = { ...before, ...update };
+
+  // Renaming the unit on the booking renames it on the board too.
+  if (
+    before.unitId &&
+    (update.projectName !== undefined ||
+      update.propertyType !== undefined ||
+      update.propertyNumber !== undefined)
+  ) {
+    const unitUpdate: Partial<typeof units.$inferInsert> = {};
+    if (update.projectName !== undefined) unitUpdate.projectName = update.projectName ?? "";
+    if (update.propertyType !== undefined) unitUpdate.unitType = update.propertyType;
+    if (update.propertyNumber !== undefined)
+      unitUpdate.unitNumber = update.propertyNumber ?? `(${params.id.slice(0, 6)})`;
+    try {
+      await db.update(units).set(unitUpdate).where(eq(units.id, before.unitId));
+    } catch {
+      return jsonError("Another unit already uses that project, type and number", 409);
+    }
+  }
 
   try {
     await db.batch([

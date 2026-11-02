@@ -44,7 +44,8 @@ export async function PUT(req: Request, { params }: Params) {
     const amount = rupeesToPaise(r.amount);
     const gstAmount = rupeesToPaise(r.gstAmount);
     const otherChargeAmount = rupeesToPaise(r.otherChargeAmount);
-    if (gstAmount + otherChargeAmount > amount) {
+    const documentationAmount = rupeesToPaise(r.documentationAmount);
+    if (gstAmount + otherChargeAmount + documentationAmount > amount) {
       return jsonError(
         `Instalment ${index + 1}: GST plus other charges cannot exceed the amount`,
         422,
@@ -55,9 +56,10 @@ export async function PUT(req: Request, { params }: Params) {
       bookingId: params.id,
       dueDate: r.dueDate,
       amount,
-      basicAmount: amount - gstAmount - otherChargeAmount,
+      basicAmount: amount - gstAmount - otherChargeAmount - documentationAmount,
       gstAmount,
       otherChargeAmount,
+      documentationAmount,
       percentageBps: r.percentage ? Number(percentToBps(r.percentage)) : null,
       label: r.label || null,
       installmentNumber: r.installmentNumber ?? index + 1,

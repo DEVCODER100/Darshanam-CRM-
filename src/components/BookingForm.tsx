@@ -31,11 +31,15 @@ const today = new Date().toISOString().slice(0, 10);
 
 export function BookingForm({
   customerId,
+  customers,
+  unit,
   mode = "create",
   bookingId,
   initial,
 }: {
-  customerId: string;
+  customerId?: string; // fixed customer (opened from a customer page)
+  customers?: { id: string; name: string }[]; // pick one when no customerId
+  unit?: { id: string; projectName: string; unitType: string; unitNumber: string };
   mode?: "create" | "edit";
   bookingId?: string;
   initial?: Partial<Values>;
@@ -43,9 +47,9 @@ export function BookingForm({
   const router = useRouter();
   const [v, setV] = useState<Values>({
     bookingDate: today,
-    projectName: "",
-    propertyType: "Villa",
-    propertyNumber: "",
+    projectName: unit?.projectName ?? "",
+    propertyType: (unit?.unitType as Values["propertyType"]) ?? "Villa",
+    propertyNumber: unit?.unitNumber ?? "",
     bookingAddress: "",
     unitStatus: "booked",
     paymentType: "self_finance",
@@ -62,6 +66,7 @@ export function BookingForm({
     documentationPercent: "0",
     ...initial,
   });
+  const [pickedCustomer, setPickedCustomer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -135,7 +140,12 @@ export function BookingForm({
         const response = await fetch("/api/bookings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...bookingPayload, ...costPayload, customerId }),
+          body: JSON.stringify({
+            ...bookingPayload,
+            ...costPayload,
+            customerId: customerId || pickedCustomer,
+            unitId: unit?.id,
+          }),
         });
         if (!response.ok) throw await response.json().catch(() => ({}));
         const body = await response.json();
@@ -173,22 +183,40 @@ export function BookingForm({
         </p>
       )}
 
+      {!customerId && customers && (
+        <Section title="Customer">
+          <Field label="Who is booking this unit?" required>
+            <select
+              className="field"
+              value={pickedCustomer}
+              onChange={(e) => setPickedCustomer(e.target.value)}
+              required
+            >
+              <option value="">Select a customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
+        </Section>
+      )}
+
       <Section title="Unit details">
         <Field label="Booking date" required>
           <input type="date" className="field" value={v.bookingDate} onChange={set("bookingDate")} required />
         </Field>
         <Field label="Project name">
-          <input className="field" value={v.projectName} onChange={set("projectName")} />
+          <input className="field" value={v.projectName} onChange={set("projectName")} disabled={!!unit} />
         </Field>
         <Field label="Unit type" required>
-          <select className="field" value={v.propertyType} onChange={set("propertyType")}>
+          <select className="field" value={v.propertyType} onChange={set("propertyType")} disabled={!!unit}>
             {["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"].map((type) => (
               <option key={type}>{type}</option>
             ))}
           </select>
         </Field>
         <Field label="Unit number">
-          <input className="field" value={v.propertyNumber} onChange={set("propertyNumber")} />
+          <input className="field" value={v.propertyNumber} onChange={set("propertyNumber")} disabled={!!unit} />
         </Field>
         <Field label="Unit status">
           <select className="field" value={v.unitStatus} onChange={set("unitStatus")}>

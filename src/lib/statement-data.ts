@@ -55,6 +55,7 @@ const add = (a: Components, b: Components): Components => ({
   basic: a.basic + b.basic,
   gst: a.gst + b.gst,
   other: a.other + b.other,
+  doc: a.doc + b.doc,
 });
 
 // --- Payment Received -------------------------------------------------------
@@ -75,6 +76,7 @@ export interface ReceivedRow {
   cgst: bigint;
   sgst: bigint;
   maintenance: bigint;
+  documentation: bigint;
   total: bigint;
   paymentFor: string;
   narration: string;
@@ -85,7 +87,14 @@ export interface ReceivedReport {
   from: string;
   to: string;
   rows: ReceivedRow[];
-  totals: { basic: bigint; cgst: bigint; sgst: bigint; maintenance: bigint; total: bigint };
+  totals: {
+    basic: bigint;
+    cgst: bigint;
+    sgst: bigint;
+    maintenance: bigint;
+    documentation: bigint;
+    total: bigint;
+  };
 }
 
 export async function getReceivedReport(month: string): Promise<ReceivedReport> {
@@ -107,6 +116,7 @@ export async function getReceivedReport(month: string): Promise<ReceivedReport> 
       amount: payments.amount,
       gstAmount: payments.gstAmount,
       maintenanceAmount: payments.maintenanceAmount,
+      documentationAmount: payments.documentationAmount,
       paymentFor: payments.paymentFor,
       notes: payments.notes,
     })
@@ -117,7 +127,14 @@ export async function getReceivedReport(month: string): Promise<ReceivedReport> 
     .where(and(gte(payments.paymentDate, from), lte(payments.paymentDate, to)))
     .orderBy(desc(payments.paymentDate), desc(payments.createdAt));
 
-  const totals = { basic: 0n, cgst: 0n, sgst: 0n, maintenance: 0n, total: 0n };
+  const totals = {
+    basic: 0n,
+    cgst: 0n,
+    sgst: 0n,
+    maintenance: 0n,
+    documentation: 0n,
+    total: 0n,
+  };
   const out = rows.map((r, i): ReceivedRow => {
     const c = paymentComponents(r);
     const { cgst, sgst } = splitGst(c.gst);
@@ -125,6 +142,7 @@ export async function getReceivedReport(month: string): Promise<ReceivedReport> 
     totals.cgst += cgst;
     totals.sgst += sgst;
     totals.maintenance += c.other;
+    totals.documentation += c.doc;
     totals.total += r.amount;
     return {
       no: i + 1,
@@ -142,6 +160,7 @@ export async function getReceivedReport(month: string): Promise<ReceivedReport> 
       cgst,
       sgst,
       maintenance: c.other,
+      documentation: c.doc,
       total: r.amount,
       paymentFor: r.paymentFor ?? "—",
       narration: r.notes ?? "",
@@ -230,6 +249,7 @@ export interface DueRow {
   cgst: bigint;
   sgst: bigint;
   other: bigint;
+  doc: bigint;
   total: bigint;
   daysOverdue: number;
   projected: boolean;
@@ -242,7 +262,14 @@ export interface DueReport {
   to: string;
   asOf: string;
   rows: DueRow[];
-  totals: { basic: bigint; cgst: bigint; sgst: bigint; other: bigint; total: bigint };
+  totals: {
+    basic: bigint;
+    cgst: bigint;
+    sgst: bigint;
+    other: bigint;
+    doc: bigint;
+    total: bigint;
+  };
 }
 
 export async function getDueReport(
@@ -278,6 +305,7 @@ export async function getDueReport(
         cgst,
         sgst,
         other: d.due.other,
+        doc: d.due.doc,
         total: sumComponents(d.due),
         daysOverdue: d.daysOverdue,
         projected: d.projected,
@@ -288,12 +316,13 @@ export async function getDueReport(
   rows.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.unit.localeCompare(b.unit));
   rows.forEach((r, i) => (r.no = i + 1));
 
-  const totals = { basic: 0n, cgst: 0n, sgst: 0n, other: 0n, total: 0n };
+  const totals = { basic: 0n, cgst: 0n, sgst: 0n, other: 0n, doc: 0n, total: 0n };
   for (const r of rows) {
     totals.basic += r.basic;
     totals.cgst += r.cgst;
     totals.sgst += r.sgst;
     totals.other += r.other;
+    totals.doc += r.doc;
     totals.total += r.total;
   }
   return { month, from, to, asOf, rows, totals };

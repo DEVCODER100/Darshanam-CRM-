@@ -40,7 +40,8 @@ export async function POST(req: Request, { params }: Params) {
   const amount = rupeesToPaise(input.amount);
   const gstAmount = rupeesToPaise(input.gstAmount);
   const maintenanceAmount = rupeesToPaise(input.maintenanceAmount);
-  if (gstAmount + maintenanceAmount > amount) {
+  const documentationAmount = rupeesToPaise(input.documentationAmount);
+  if (gstAmount + maintenanceAmount + documentationAmount > amount) {
     return jsonError("GST plus other charges cannot exceed the payment total", 422);
   }
 
@@ -104,6 +105,7 @@ export async function POST(req: Request, { params }: Params) {
     amount,
     gstAmount,
     maintenanceAmount,
+    documentationAmount,
     paymentFor: input.paymentFor || null,
     mode: input.mode,
     stage: input.stage ?? booking.currentStage,

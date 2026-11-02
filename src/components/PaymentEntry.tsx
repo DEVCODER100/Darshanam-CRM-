@@ -26,10 +26,12 @@ export function PaymentEntry({
   bookingId,
   canAdd,
   gstBps = 0,
+  docBps = 0,
 }: {
   bookingId: string;
   canAdd: boolean;
   gstBps?: number; // booking GST rate in basis points (e.g. 500 = 5%)
+  docBps?: number; // booking document-charge rate in basis points (e.g. 590 = 5.9%)
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,6 +40,8 @@ export function PaymentEntry({
   const [gst, setGst] = useState("");
   const [gstTouched, setGstTouched] = useState(false);
   const [maintenance, setMaintenance] = useState("");
+  const [documentation, setDocumentation] = useState("");
+  const [docTouched, setDocTouched] = useState(false);
   const [paymentFor, setPaymentFor] = useState("");
   const [mode, setMode] = useState<(typeof MODES)[number][0]>("bank_transfer");
   const [reference, setReference] = useState("");
@@ -54,12 +58,14 @@ export function PaymentEntry({
   // Suggest GST = rate × basic, until the user edits GST manually.
   function onBasicChange(value: string) {
     setBasic(value);
-    if (!gstTouched && gstBps > 0) {
-      try {
-        setGst(paiseToRupeeString(applyBasisPoints(rupeesToPaise(value || "0"), BigInt(gstBps))));
-      } catch {
-        /* ignore partial input */
-      }
+    try {
+      const basicPaise = rupeesToPaise(value || "0");
+      if (!gstTouched && gstBps > 0)
+        setGst(paiseToRupeeString(applyBasisPoints(basicPaise, BigInt(gstBps))));
+      if (!docTouched && docBps > 0)
+        setDocumentation(paiseToRupeeString(applyBasisPoints(basicPaise, BigInt(docBps))));
+    } catch {
+      /* ignore partial input */
     }
   }
 
@@ -68,7 +74,8 @@ export function PaymentEntry({
       return formatINR(
         rupeesToPaise(basic || "0") +
           rupeesToPaise(gst || "0") +
-          rupeesToPaise(maintenance || "0"),
+          rupeesToPaise(maintenance || "0") +
+          rupeesToPaise(documentation || "0"),
       );
     } catch {
       return "—";
@@ -99,7 +106,8 @@ export function PaymentEntry({
       amount = paiseToRupeeString(
         rupeesToPaise(basic || "0") +
           rupeesToPaise(gst || "0") +
-          rupeesToPaise(maintenance || "0"),
+          rupeesToPaise(maintenance || "0") +
+          rupeesToPaise(documentation || "0"),
       );
     } catch {
       setBusy(false);
@@ -115,6 +123,7 @@ export function PaymentEntry({
         amount,
         gstAmount: gst || "0",
         maintenanceAmount: maintenance || "0",
+        documentationAmount: documentation || "0",
         paymentFor,
         mode,
         source,
@@ -136,6 +145,8 @@ export function PaymentEntry({
     setGst("");
     setGstTouched(false);
     setMaintenance("");
+    setDocumentation("");
+    setDocTouched(false);
     setPaymentFor("");
     setReference("");
     setNotes("");
@@ -184,12 +195,18 @@ export function PaymentEntry({
           <input className={inp} value={maintenance} onChange={(e) => setMaintenance(e.target.value)} placeholder="0" />
         </label>
         <label className="text-sm">
+          <span className="mb-1 block text-muted">
+            Document charges (₹){docBps > 0 ? ` · ${docBps / 100}% suggested` : ""}
+          </span>
+          <input className={inp} value={documentation} onChange={(e) => { setDocTouched(true); setDocumentation(e.target.value); }} placeholder="0" />
+        </label>
+        <label className="text-sm">
           <span className="mb-1 block text-muted">Payment for</span>
           <input className={inp} value={paymentFor} onChange={(e) => setPaymentFor(e.target.value)} placeholder="Installment 2, On completion of plinth…" />
         </label>
         <p className="sm:col-span-2 -mt-1 text-xs text-muted">
           Total payment: <span className="money font-medium text-ink">{totalString()}</span>
-          {" "}(basic + GST + other charges)
+          {" "}(basic + GST + other + document charges)
         </p>
         <label className="text-sm">
           <span className="mb-1 block text-muted">Mode</span>
