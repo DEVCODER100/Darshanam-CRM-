@@ -11,6 +11,7 @@ const ITEMS = [
   ["/calendar", "Calendar"],
   ["/reports", "Reports"],
   ["/audit", "Audit"],
+  ["/team", "Team"],
 ] as const;
 
 export function SidebarNav() {
