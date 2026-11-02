@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { isAuthBypassed } from "@/lib/dev-auth";
 
 // Public routes = the auth pages only. Everything else requires a session.
 // No public signup: sign-up is invite-only via Clerk, but the route must be
@@ -6,6 +7,8 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Local dev only (AUTH_DISABLED=true, never in production): skip the login gate.
+  if (isAuthBypassed()) return;
   if (!isPublicRoute(req)) {
     // No session -> redirect to sign-in (pages) or 401 (API handled per-route).
     await auth.protect();

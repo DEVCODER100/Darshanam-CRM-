@@ -10,10 +10,11 @@
  */
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { can, type Capability, type Role } from "@/lib/permissions";
+import { isAuthBypassed } from "@/lib/dev-auth";
 
 export { can };
 export type { Capability, Role, AuditAction, AuditEntity } from "@/lib/permissions";
@@ -36,6 +37,43 @@ function isAdminEmail(email: string): boolean {
 }
 
 /**
+ * Local dev bypass user: a real admin row (so created_by / audit FKs stay valid).
+ * Prefers an ADMIN_EMAILS account, else any admin with a real Clerk id.
+ */
+async function getDevUser(): Promise<CurrentUser> {
+  const emails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const fromList = emails.length
+    ? await db.select().from(users).where(inArray(users.email, emails)).limit(1)
+    : [];
+  const row =
+    fromList[0] ??
+    (
+      await db
+        .select()
+        .from(users)
+        .where(eq(users.role, "admin"))
+        .orderBy(users.createdAt)
+    ).find((u) => u.clerkUserId !== "seed_admin_placeholder");
+
+  if (!row) {
+    throw new Error(
+      "AUTH_DISABLED is on but no admin user exists. Sign in once with Clerk, or set ADMIN_EMAILS.",
+    );
+  }
+  return {
+    id: row.id,
+    clerkUserId: row.clerkUserId,
+    name: row.name,
+    email: row.email,
+    role: "admin",
+  };
+}
+
+/**
  * Resolve the current staff user, syncing a row from the Clerk identity.
  * Admin assignment: any email in ADMIN_EMAILS is promoted to `admin` on sign-in.
  * Otherwise the very first user to sign in becomes `admin` (bootstrap) and
@@ -43,6 +81,8 @@ function isAdminEmail(email: string): boolean {
  * Returns null when there is no Clerk session.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
+  if (isAuthBypassed()) return getDevUser();
+
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) return null;
 
