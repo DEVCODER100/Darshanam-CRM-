@@ -9,7 +9,7 @@ import { CONSTRUCTION_STAGES } from "@/lib/stage";
 interface Values {
   bookingDate: string;
   projectName: string;
-  propertyType: "Villa" | "Plot" | "Apartment" | "Flat" | "Shop";
+  propertyType: "Villa" | "Bungalow" | "Plot" | "Apartment" | "Flat" | "Shop";
   propertyNumber: string;
   bookingAddress: string;
   unitStatus: "available" | "booked" | "sold";
@@ -182,7 +182,7 @@ export function BookingForm({
         </Field>
         <Field label="Unit type" required>
           <select className="field" value={v.propertyType} onChange={set("propertyType")}>
-            {["Villa", "Plot", "Apartment", "Flat", "Shop"].map((type) => (
+            {["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"].map((type) => (
               <option key={type}>{type}</option>
             ))}
           </select>

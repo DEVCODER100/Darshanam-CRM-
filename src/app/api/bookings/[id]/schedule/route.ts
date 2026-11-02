@@ -6,7 +6,7 @@ import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError, serializeBigInt } from "@/lib/api";
 import { scheduleReplaceSchema } from "@/lib/validators";
-import { rupeesToPaise } from "@/lib/money";
+import { rupeesToPaise, percentToBps } from "@/lib/money";
 
 type Params = { params: { id: string } };
 
@@ -37,14 +37,32 @@ export async function PUT(req: Request, { params }: Params) {
     .where(eq(paymentSchedule.bookingId, params.id))
     .orderBy(asc(paymentSchedule.dueDate));
 
-  const newRows = parsed.data.rows.map((r, index) => ({
-    id: genId(),
-    bookingId: params.id,
-    dueDate: r.dueDate,
-    amount: rupeesToPaise(r.amount),
-    label: r.label || null,
-    installmentNumber: r.installmentNumber ?? index + 1,
-  }));
+  // `amount` is the gross due; basic is whatever is left after GST and other
+  // charges. Reject rows where the parts exceed the total.
+  const newRows = [];
+  for (const [index, r] of parsed.data.rows.entries()) {
+    const amount = rupeesToPaise(r.amount);
+    const gstAmount = rupeesToPaise(r.gstAmount);
+    const otherChargeAmount = rupeesToPaise(r.otherChargeAmount);
+    if (gstAmount + otherChargeAmount > amount) {
+      return jsonError(
+        `Instalment ${index + 1}: GST plus other charges cannot exceed the amount`,
+        422,
+      );
+    }
+    newRows.push({
+      id: genId(),
+      bookingId: params.id,
+      dueDate: r.dueDate,
+      amount,
+      basicAmount: amount - gstAmount - otherChargeAmount,
+      gstAmount,
+      otherChargeAmount,
+      percentageBps: r.percentage ? Number(percentToBps(r.percentage)) : null,
+      label: r.label || null,
+      installmentNumber: r.installmentNumber ?? index + 1,
+    });
+  }
 
   const audit = db.insert(auditLog).values(
     auditEntry({

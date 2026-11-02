@@ -90,6 +90,10 @@ export async function PATCH(req: Request, { params }: Params) {
   if (input.amount !== undefined) update.amount = rupeesToPaise(input.amount);
   if (input.gstAmount !== undefined)
     update.gstAmount = rupeesToPaise(input.gstAmount);
+  if (input.maintenanceAmount !== undefined)
+    update.maintenanceAmount = rupeesToPaise(input.maintenanceAmount);
+  if (input.paymentFor !== undefined)
+    update.paymentFor = input.paymentFor || null;
   if (input.mode !== undefined) update.mode = input.mode;
   if (input.stage !== undefined) update.stage = input.stage;
   if (input.source !== undefined) update.source = input.source;

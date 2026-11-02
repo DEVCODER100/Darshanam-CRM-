@@ -12,4 +12,5 @@ export interface ExportTable {
   columns: ExportColumn[];
   rows: Cell[][];
   footer?: Cell[];
+  landscape?: boolean;
 }

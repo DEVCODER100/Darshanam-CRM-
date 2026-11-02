@@ -47,6 +47,7 @@ export default async function EditBookingPage({
           projectName: booking.projectName ?? "",
           propertyType: booking.propertyType as
             | "Villa"
+            | "Bungalow"
             | "Plot"
             | "Apartment"
             | "Flat"

@@ -210,7 +210,13 @@ export const paymentSchedule = pgTable(
       .notNull()
       .references(() => bookings.id, { onDelete: "cascade" }),
     dueDate: date("due_date").notNull(),
+    // `amount` is the GROSS due (basic + gst + other charges). The three split
+    // columns are 0 on legacy rows, which are then treated as all-basic.
     amount: paise("amount").notNull(),
+    basicAmount: paise("basic_amount").notNull().default(sql`0`),
+    gstAmount: paise("gst_amount").notNull().default(sql`0`),
+    otherChargeAmount: paise("other_charge_amount").notNull().default(sql`0`),
+    percentageBps: integer("percentage_bps"),
     label: text("label"),
     installmentNumber: integer("installment_number"),
   },
@@ -227,10 +233,12 @@ export const payments = pgTable(
       .notNull()
       .references(() => bookings.id, { onDelete: "cascade" }),
     paymentDate: date("payment_date").notNull(),
-    // `amount` is the TOTAL paid (basic + gst). `gstAmount` is the GST portion
-    // of that payment; basic principal = amount - gstAmount.
+    // `amount` is the TOTAL paid (basic + gst + other charges). `gstAmount` and
+    // `maintenanceAmount` are portions of it; basic = amount - gst - maintenance.
     amount: paise("amount").notNull(),
     gstAmount: paise("gst_amount").notNull().default(sql`0`),
+    maintenanceAmount: paise("maintenance_amount").notNull().default(sql`0`),
+    paymentFor: text("payment_for"),
     mode: paymentModeEnum("mode").notNull().default("bank_transfer"),
     stage: constructionStageEnum("stage"),
     source: text("source").notNull().default("customer"),

@@ -6,6 +6,9 @@ import { Forbidden } from "@/components/ReportForbidden";
 export const dynamic = "force-dynamic";
 
 const REPORTS = [
+  ["/reports/received", "Payment received", "Month-wise receipts split into basic, CGST, SGST and other charges."],
+  ["/reports/due", "Payment due", "Month-wise unpaid instalments with GST, other charges and days overdue."],
+  ["/reports/statement", "Statement", "Receivable, received and due for installments, GST and other charges."],
   ["/reports/outstanding", "Outstanding", "All bookings with dues outstanding, highest first."],
   ["/reports/customer", "Customer", "Every customer with bookings and full payment history."],
   ["/reports/unit", "Unit", "Booked units, project, status, value, stage and payment type."],

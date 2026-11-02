@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
 import { SearchBar } from "@/components/SearchBar";
 
-const TYPE_ORDER = ["Villa", "Flat", "Shop"];
+const TYPE_ORDER = ["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"];
 
 export const dynamic = "force-dynamic";
 

@@ -39,6 +39,10 @@ export async function POST(req: Request, { params }: Params) {
   const input = parsed.data;
   const amount = rupeesToPaise(input.amount);
   const gstAmount = rupeesToPaise(input.gstAmount);
+  const maintenanceAmount = rupeesToPaise(input.maintenanceAmount);
+  if (gstAmount + maintenanceAmount > amount) {
+    return jsonError("GST plus other charges cannot exceed the payment total", 422);
+  }
 
   const [booking, cost, existingPayments, dueRows] = await Promise.all([
     db.query.bookings.findFirst({ where: eq(bookings.id, params.id) }),
@@ -99,6 +103,8 @@ export async function POST(req: Request, { params }: Params) {
     paymentDate: input.paymentDate,
     amount,
     gstAmount,
+    maintenanceAmount,
+    paymentFor: input.paymentFor || null,
     mode: input.mode,
     stage: input.stage ?? booking.currentStage,
     source: input.source,

@@ -41,7 +41,7 @@ export const bookingCreateSchema = z.object({
   customerId: z.string().uuid(),
   bookingDate: isoDate,
   projectName: z.string().trim().optional().or(z.literal("")),
-  propertyType: z.enum(["Villa", "Plot", "Apartment", "Flat", "Shop"]),
+  propertyType: z.enum(["Villa", "Bungalow", "Plot", "Apartment", "Flat", "Shop"]),
   propertyNumber: z.string().trim().optional().or(z.literal("")),
   bookingAddress: z.string().trim().optional().or(z.literal("")),
   unitStatus: z.enum(["available", "booked", "sold"]).default("booked"),
@@ -78,7 +78,11 @@ export const costUpdateSchema = z.object({
 
 export const scheduleRowSchema = z.object({
   dueDate: isoDate,
+  // `amount` is the GROSS due (basic + gst + other charges); basic is derived.
   amount: rupeeString,
+  gstAmount: rupeeString.default("0"),
+  otherChargeAmount: rupeeString.default("0"),
+  percentage: percentString.optional().or(z.literal("")),
   label: z.string().trim().optional().or(z.literal("")),
   installmentNumber: z.number().int().positive().optional(),
 });
@@ -90,6 +94,8 @@ export const paymentCreateSchema = z.object({
   paymentDate: isoDate,
   amount: rupeeString,
   gstAmount: rupeeString.default("0"),
+  maintenanceAmount: rupeeString.default("0"),
+  paymentFor: z.string().trim().optional().or(z.literal("")),
   mode: z
     .enum([
       "cash",

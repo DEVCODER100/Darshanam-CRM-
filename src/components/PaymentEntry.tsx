@@ -37,6 +37,8 @@ export function PaymentEntry({
   const [basic, setBasic] = useState("");
   const [gst, setGst] = useState("");
   const [gstTouched, setGstTouched] = useState(false);
+  const [maintenance, setMaintenance] = useState("");
+  const [paymentFor, setPaymentFor] = useState("");
   const [mode, setMode] = useState<(typeof MODES)[number][0]>("bank_transfer");
   const [reference, setReference] = useState("");
   const [source, setSource] = useState<"customer" | "bank">("customer");
@@ -63,7 +65,11 @@ export function PaymentEntry({
 
   function totalString(): string {
     try {
-      return formatINR(rupeesToPaise(basic || "0") + rupeesToPaise(gst || "0"));
+      return formatINR(
+        rupeesToPaise(basic || "0") +
+          rupeesToPaise(gst || "0") +
+          rupeesToPaise(maintenance || "0"),
+      );
     } catch {
       return "—";
     }
@@ -91,11 +97,13 @@ export function PaymentEntry({
     let amount: string;
     try {
       amount = paiseToRupeeString(
-        rupeesToPaise(basic || "0") + rupeesToPaise(gst || "0"),
+        rupeesToPaise(basic || "0") +
+          rupeesToPaise(gst || "0") +
+          rupeesToPaise(maintenance || "0"),
       );
     } catch {
       setBusy(false);
-      setError("Enter valid basic and GST amounts");
+      setError("Enter valid basic, GST and other-charge amounts");
       return;
     }
 
@@ -106,6 +114,8 @@ export function PaymentEntry({
         paymentDate,
         amount,
         gstAmount: gst || "0",
+        maintenanceAmount: maintenance || "0",
+        paymentFor,
         mode,
         source,
         overrideStageLimit,
@@ -125,6 +135,8 @@ export function PaymentEntry({
     setBasic("");
     setGst("");
     setGstTouched(false);
+    setMaintenance("");
+    setPaymentFor("");
     setReference("");
     setNotes("");
     setFile(null);
@@ -167,9 +179,17 @@ export function PaymentEntry({
             placeholder="0"
           />
         </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Other charges / maintenance (₹)</span>
+          <input className={inp} value={maintenance} onChange={(e) => setMaintenance(e.target.value)} placeholder="0" />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Payment for</span>
+          <input className={inp} value={paymentFor} onChange={(e) => setPaymentFor(e.target.value)} placeholder="Installment 2, On completion of plinth…" />
+        </label>
         <p className="sm:col-span-2 -mt-1 text-xs text-muted">
           Total payment: <span className="money font-medium text-ink">{totalString()}</span>
-          {" "}(basic + GST)
+          {" "}(basic + GST + other charges)
         </p>
         <label className="text-sm">
           <span className="mb-1 block text-muted">Mode</span>

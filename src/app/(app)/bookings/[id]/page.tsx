@@ -44,7 +44,10 @@ export default async function BookingDetailPage({
   const o = outstanding;
 
   // GST owed proportional to basic collected (basic = amount − gstAmount per payment).
-  const basicCollected = payments.reduce((s, p) => s + (p.amount - p.gstAmount), 0n);
+  const basicCollected = payments.reduce(
+    (s, p) => s + (p.amount - p.gstAmount - p.maintenanceAmount),
+    0n,
+  );
   const gstCollected = payments.reduce((s, p) => s + p.gstAmount, 0n);
   const gstStatus = cost
     ? computeGstStatus({
@@ -253,6 +256,11 @@ export default async function BookingDetailPage({
               dueDate: s.dueDate,
               amount: paiseToRupeeString(s.amount),
               label: s.label ?? "",
+              gstAmount: paiseToRupeeString(s.gstAmount),
+              otherChargeAmount: paiseToRupeeString(s.otherChargeAmount),
+              percentage: s.percentageBps
+                ? bpsToPercentString(BigInt(s.percentageBps))
+                : "",
             }))}
           />
         </div>
@@ -274,6 +282,7 @@ export default async function BookingDetailPage({
                   <th>Date</th>
                   <th className="text-right">Basic</th>
                   <th className="text-right">GST</th>
+                  <th className="text-right">Other</th>
                   <th className="text-right">Total</th>
                   <th>Mode</th>
                   <th>Source</th>
@@ -286,8 +295,9 @@ export default async function BookingDetailPage({
                 {payments.map((p) => (
                   <tr key={p.id}>
                     <td>{p.paymentDate}</td>
-                    <td className="money text-right">{formatINR(p.amount - p.gstAmount)}</td>
+                    <td className="money text-right">{formatINR(p.amount - p.gstAmount - p.maintenanceAmount)}</td>
                     <td className="money text-right text-muted">{formatINR(p.gstAmount)}</td>
+                    <td className="money text-right text-muted">{formatINR(p.maintenanceAmount)}</td>
                     <td className="money text-right font-medium text-paid">{formatINR(p.amount)}</td>
                     <td><span className="pill-neutral">{MODE_LABELS[p.mode] ?? p.mode}</span></td>
                     <td>{p.source === "bank" ? "Bank release" : "Customer"}</td>

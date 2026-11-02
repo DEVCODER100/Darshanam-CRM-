@@ -86,7 +86,11 @@ export async function buildPdf(table: ExportTable): Promise<Buffer> {
     null,
     h(
       Page,
-      { size: "A4", style: styles.page },
+      {
+        size: "A4",
+        orientation: table.landscape ? "landscape" : "portrait",
+        style: [styles.page, { fontSize: cols.length > 10 ? 6.5 : 9 }],
+      },
       h(Text, { style: styles.title }, table.title),
       h(
         Text,
