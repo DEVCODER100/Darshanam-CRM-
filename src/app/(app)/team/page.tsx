@@ -85,7 +85,7 @@ export default async function TeamPage() {
             >
               Clerk dashboard
             </a>{" "}
-            — they'll appear here after first sign-in.
+            — they&apos;ll appear here after first sign-in.
           </p>
         </div>
         <TeamTable members={members} currentUserId={currentUser.id} />
