@@ -43,6 +43,27 @@ export default async function BookingDetailPage({
   } = d;
   const o = outstanding;
 
+  // Payment allocation: how the money received covers each cost component.
+  const allocationRows = cost
+    ? allocatePayments(
+        {
+          baseCost: cost.baseCost,
+          gstAmount: cost.gstAmount,
+          maintenanceCharge: cost.maintenanceCharge,
+          documentationAmount: cost.documentationAmount,
+        },
+        o.totalPaid,
+      )
+    : [];
+  const allocationTotals = allocationRows.reduce(
+    (t, c) => ({
+      amount: t.amount + c.amount,
+      covered: t.covered + c.covered,
+      pending: t.pending + (c.amount - c.covered),
+    }),
+    { amount: 0n, covered: 0n, pending: 0n },
+  );
+
   // GST owed proportional to basic collected (basic = amount − gstAmount per payment).
   const basicCollected = payments.reduce(
     (s, p) =>
@@ -207,38 +228,53 @@ export default async function BookingDetailPage({
             How {formatINR(o.totalPaid)} received so far covers each component
             (applied Base → GST → Maintenance → Documentation).
           </p>
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Component</th>
                   <th className="text-right">Amount</th>
                   <th className="text-right">Covered</th>
+                  <th className="text-right">Pending</th>
                   <th className="text-right">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {allocatePayments(
-                  {
-                    baseCost: cost.baseCost,
-                    gstAmount: cost.gstAmount,
-                    maintenanceCharge: cost.maintenanceCharge,
-                    documentationAmount: cost.documentationAmount,
-                  },
-                  o.totalPaid,
-                ).map((c) => (
+                {allocationRows.map((c) => (
                   <tr key={c.key}>
                     <td className={c.key === "gst" ? "font-medium text-ink" : ""}>
                       {c.label}
                     </td>
                     <td className="money text-right">{formatINR(c.amount)}</td>
-                    <td className="money text-right text-muted">{formatINR(c.covered)}</td>
+                    <td className="money text-right text-paid">{formatINR(c.covered)}</td>
+                    <td className="money text-right font-medium text-due">
+                      {formatINR(c.amount - c.covered)}
+                    </td>
                     <td className="text-right">
                       <CoveragePill status={c.status} />
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-hairline bg-canvas font-medium">
+                  <td>Total</td>
+                  <td className="money text-right">{formatINR(allocationTotals.amount)}</td>
+                  <td className="money text-right text-paid">{formatINR(allocationTotals.covered)}</td>
+                  <td className="money text-right text-due">{formatINR(allocationTotals.pending)}</td>
+                  <td className="text-right">
+                    <CoveragePill
+                      status={
+                        allocationTotals.pending === 0n
+                          ? "paid"
+                          : allocationTotals.covered > 0n
+                            ? "partial"
+                            : "pending"
+                      }
+                    />
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>
