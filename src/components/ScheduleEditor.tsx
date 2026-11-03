@@ -43,6 +43,8 @@ const KINDS: [PlanKind, string][] = [
   ["custom", "Custom"],
 ];
 
+const LABELS = ["Booking amount", "Lump sum", ...STAGE_STEPS.map((s) => s.label), "Possession / handover"];
+
 const blankRow = (): Row => ({
   dueDate: "",
   label: "",
@@ -138,6 +140,17 @@ export function ScheduleEditor({
     setKind(k);
     if (k === "stage") setRows(stagePlan(price).map(planRow));
     if (k === "loan") setRows(loanPlan(price, loanAmount).map(planRow));
+  }
+
+  // Picking a stage name also fills its usual share when the row is still empty.
+  function onLabel(i: number, v: string) {
+    const step = STAGE_STEPS.find((st) => st.label === v);
+    if (step && !rows[i].basic && price > 0n)
+      return patch(i, {
+        ...planRow({ label: v, percentBps: step.bps, basic: applyBasisPoints(price, BigInt(step.bps)) }),
+        dueDate: rows[i].dueDate,
+      });
+    patch(i, { label: v });
   }
 
   const addRow = (p: PlanRow) => setRows((rs) => [...rs, planRow(p)]);
@@ -307,10 +320,10 @@ export function ScheduleEditor({
             Due date
             <input type="date" className={inp} value={r.dueDate} onChange={(e) => patch(i, { dueDate: e.target.value })} />
           </label>
-          <label className="text-xs text-muted">
+          <div className="text-xs text-muted">
             Instalment name
-            <input className={inp} value={r.label} placeholder="On completion of plinth" onChange={(e) => patch(i, { label: e.target.value })} />
-          </label>
+            <LabelCombo value={r.label} onChange={(v) => onLabel(i, v)} />
+          </div>
           <label className="w-20 text-xs text-muted">
             % of price
             <input className={inp} value={r.percentage} placeholder="10" onChange={(e) => patch(i, { percentage: e.target.value })} />
@@ -378,3 +391,48 @@ export function ScheduleEditor({
 }
 
 const inp = "mt-1 block field";
+
+/** Name box with an arrow that lists every level; typing a custom name still works. */
+function LabelCombo({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="relative"
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}
+    >
+      <input
+        className={`${inp} pr-8`}
+        value={value}
+        placeholder="Select or type a name"
+        onFocus={() => setOpen(true)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        aria-label="Show levels"
+        onClick={() => setOpen((o) => !o)}
+        className="absolute bottom-0 right-0 flex h-[42px] items-center px-3 text-muted hover:text-ink"
+      >
+        ▾
+      </button>
+      {open && (
+        <ul className="absolute z-10 mt-1 w-full min-w-[15rem] rounded-md border border-hairline bg-surface py-1 shadow-lg">
+          {LABELS.map((l) => (
+            <li key={l}>
+              <button
+                type="button"
+                className="block w-full px-3 py-1.5 text-left text-sm text-ink hover:bg-canvas"
+                onClick={() => {
+                  onChange(l);
+                  setOpen(false);
+                }}
+              >
+                {l}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
