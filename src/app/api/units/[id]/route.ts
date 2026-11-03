@@ -6,6 +6,7 @@ import { requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, jsonError } from "@/lib/api";
 import { unitPatchSchema } from "@/lib/validators";
+import { CLEAR_BLOCK } from "@/lib/unit-block";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ async function isBooked(unitId: string): Promise<boolean> {
   return !!b;
 }
 
-// PATCH /api/units/[id] — block or release a unit (unit:manage).
+// PATCH /api/units/[id] — block a unit for someone, or release it (unit:manage).
 // A booked unit can't be blocked: it is already taken.
 export async function PATCH(req: Request, { params }: Params) {
   const gate = await requireCapability("unit:manage");
@@ -36,8 +37,17 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const update = input.blocked
-    ? { blocked: true, blockReason: input.blockReason || null, blockedAt: new Date() }
-    : { blocked: false, blockReason: null, blockedAt: null };
+    ? {
+        blocked: true,
+        blockReason: input.blockReason || null,
+        blockedAt: new Date(),
+        blockCustomerId: input.customerId || null,
+        blockName: input.name,
+        blockMobile: input.mobile,
+        blockedBy: input.blockedBy || gate.user.id,
+        unblockOn: input.unblockOn || null,
+      }
+    : CLEAR_BLOCK;
 
   await db.batch([
     db.update(units).set(update).where(eq(units.id, params.id)),

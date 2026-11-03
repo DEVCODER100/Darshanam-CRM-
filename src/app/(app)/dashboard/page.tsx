@@ -2,7 +2,11 @@ import Link from "next/link";
 import { getBoard, getUnitPanel, type UnitStatus } from "@/lib/unit-board";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
+import { ne } from "drizzle-orm";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import { UnitAdd } from "@/components/UnitAdd";
+import { UnitQuickActions } from "@/components/UnitQuickActions";
 import { UnitPanel } from "@/components/UnitPanel";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +24,18 @@ const BOX: Record<UnitStatus, string> = {
 };
 
 type Params = { unit?: string; type?: string; status?: string; q?: string; project?: string };
+
+/** Real staff for the "Blocked by" list; an email tells apart people with the same name. */
+async function staffChoices() {
+  const rows = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(ne(users.clerkUserId, "seed_admin_placeholder"));
+  return rows.map((u) => ({
+    id: u.id,
+    name: rows.filter((o) => o.name === u.name).length > 1 ? `${u.name} (${u.email})` : u.name,
+  }));
+}
 
 export default async function DashboardPage({ searchParams }: { searchParams: Params }) {
   const user = await getCurrentUser();
@@ -59,7 +75,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
     canPay: !!user && can(user.role, "payment:create"),
     canEditBooking: !!user && can(user.role, "booking:edit"),
     canManageUnits: !!user && can(user.role, "unit:manage"),
+    staff: await staffChoices(),
+    currentUserId: user?.id ?? "",
   };
+  const freeUnits = board.units
+    .filter((u) => u.status === "available")
+    .map((u) => ({ id: u.id, label: `${u.name}${u.projectName ? ` · ${u.projectName}` : ""}` }));
 
   return (
     <div className="space-y-5">
@@ -70,6 +91,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
         </div>
         {access.canManageUnits && <UnitAdd />}
       </div>
+
+      {(access.canBook || access.canManageUnits) && (
+        <UnitQuickActions
+          freeUnits={freeUnits}
+          staff={access.staff}
+          currentUserId={access.currentUserId}
+          canBook={access.canBook}
+          canBlock={access.canManageUnits}
+        />
+      )}
 
       {/* Legend + status filter */}
       <div className="flex flex-wrap items-center gap-2">
@@ -146,7 +177,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
                     >
                       <p className="truncate text-sm font-medium">{u.name}</p>
                       <p className="truncate text-xs">
-                        {u.status === "booked" ? u.owner : u.status === "blocked" ? "Blocked" : "Available"}
+                        {u.status === "booked" ? u.owner : u.block ? `Blocked · ${u.block.name}` : "Available"}
                       </p>
                     </Link>
                   ))}

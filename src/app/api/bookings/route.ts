@@ -9,6 +9,7 @@ import { bookingCreateSchema } from "@/lib/validators";
 import { computeCost } from "@/lib/cost";
 import { rupeesToPaise, percentToBps } from "@/lib/money";
 import { nextCode } from "@/lib/codes";
+import { CLEAR_BLOCK } from "@/lib/unit-block";
 
 // GET /api/bookings — list (any authenticated staff).
 export async function GET() {
@@ -59,9 +60,6 @@ export async function POST(req: Request) {
         .values({ projectName: project, unitType: input.propertyType, unitNumber: number })
         .returning();
     }
-  }
-  if (unit.blocked) {
-    return jsonError("This unit is blocked. Release it first, then book it.", 409);
   }
   const taken = await db.query.bookings.findFirst({
     where: eq(bookings.unitId, unit.id),
@@ -120,6 +118,8 @@ export async function POST(req: Request) {
   try {
     await db.batch([
       db.insert(bookings).values(bookingRow),
+      // Booking the unit ends any hold on it.
+      db.update(units).set(CLEAR_BLOCK).where(eq(units.id, unit.id)),
       db.insert(propertyCosts).values(costRow),
       db.insert(auditLog).values(
         auditEntry({

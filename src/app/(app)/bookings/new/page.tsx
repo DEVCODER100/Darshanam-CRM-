@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, units } from "@/db/schema";
 import { BookingForm } from "@/components/BookingForm";
+import { blockActive } from "@/lib/unit-block";
 
 export const dynamic = "force-dynamic";
 
@@ -32,17 +33,18 @@ export default async function NewBookingPage({
       where: eq(bookings.unitId, unit.id),
       columns: { id: true },
     });
-    if (taken || unit.blocked) {
+    if (taken) {
       return (
         <div className="space-y-3">
           <Link href="/dashboard" className="text-sm text-brass-dark hover:underline">← Unit board</Link>
           <p className="rounded-md bg-due-bg px-3 py-2 text-sm text-due">
-            {unit.unitType} {unit.unitNumber} is {taken ? "already booked" : "blocked"}, so it can&apos;t be booked.
+            {unit.unitType} {unit.unitNumber} is already booked, so it can&apos;t be booked again.
           </p>
         </div>
       );
     }
   }
+  const held = unit && blockActive(unit) ? unit : undefined;
 
   const customerList = customer
     ? undefined
@@ -62,7 +64,14 @@ export default async function NewBookingPage({
       <h1 className="mb-4 mt-2 text-2xl font-medium">
         {unit ? `Book ${unit.unitType} ${unit.unitNumber}` : "New booking"}
       </h1>
+      {held && (
+        <p className="mb-4 rounded-md bg-due-bg px-3 py-2 text-sm text-due">
+          Blocked for {held.blockName}{held.blockMobile ? ` (${held.blockMobile})` : ""}
+          {held.unblockOn ? ` until ${held.unblockOn}` : ""}. Booking it will release the block.
+        </p>
+      )}
       <BookingForm
+        defaultCustomerId={held?.blockCustomerId ?? undefined}
         customerId={customer?.id}
         customers={customerList}
         unit={

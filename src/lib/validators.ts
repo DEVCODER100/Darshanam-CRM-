@@ -33,7 +33,23 @@ const customerBase = z.object({
   panNumber: z.string().trim().optional().or(z.literal("")),
   // Only when the customer truly has no PAN (e.g. foreign national). Mandatory otherwise.
   noPanReason: z.string().trim().optional().or(z.literal("")),
-  aadhaarNumber: z.string().trim().optional().or(z.literal("")),
+  idProofNumber: z.string().trim().optional().or(z.literal("")),
+  profile: z.record(z.string(), z.string()).optional(),
+  jointApplicants: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, "Joint applicant needs a name"),
+        mobile: z.string().trim().default(""),
+        relation: z.string().trim().default(""),
+        panNumber: z
+          .string()
+          .trim()
+          .default("")
+          .refine((v) => !v || isValidPan(v), "Joint applicant PAN must look like ABCDE1234F"),
+        panEncrypted: z.string().default(""), // unchanged PAN passed back by the edit form
+      }),
+    )
+    .optional(),
   address: z.string().trim().optional().or(z.literal("")),
   salesExecutive: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
@@ -203,7 +219,19 @@ export const unitCreateSchema = z
     message: "Give a unit number, or a count to create several",
   });
 
-export const unitPatchSchema = z.object({
-  blocked: z.boolean(),
-  blockReason: z.string().trim().optional().or(z.literal("")),
-});
+// Blocking needs who it is held for and a contact number; releasing needs nothing.
+export const unitPatchSchema = z
+  .object({
+    blocked: z.boolean(),
+    customerId: z.string().uuid().optional().or(z.literal("")),
+    name: z.string().trim().optional().or(z.literal("")),
+    mobile: z.string().trim().optional().or(z.literal("")),
+    blockReason: z.string().trim().optional().or(z.literal("")),
+    unblockOn: isoDate.optional().or(z.literal("")), // blank = never
+    blockedBy: z.string().uuid().optional().or(z.literal("")),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.blocked) return;
+    if (!v.name) ctx.addIssue({ code: "custom", path: ["name"], message: "Who is the unit blocked for?" });
+    if (!v.mobile) ctx.addIssue({ code: "custom", path: ["mobile"], message: "Contact number is required" });
+  });

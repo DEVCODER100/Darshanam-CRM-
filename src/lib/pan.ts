@@ -22,14 +22,16 @@ function keyFrom(base64Key: string | undefined): Buffer {
 
 const envKey = () => keyFrom(process.env.PAN_ENCRYPTION_KEY);
 
-/** Returns "v1.<iv>.<tag>.<ciphertext>" (base64 parts). */
-export function encryptPan(pan: string, key: Buffer = envKey()): string {
+/** Returns "v1.<iv>.<tag>.<ciphertext>" (base64 parts). Works for any short text. */
+export function encryptText(text: string, key: Buffer = envKey()): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const enc = Buffer.concat([cipher.update(normalizePan(pan), "utf8"), cipher.final()]);
+  const enc = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return ["v1", iv.toString("base64"), tag.toString("base64"), enc.toString("base64")].join(".");
 }
+
+export const encryptPan = (pan: string, key?: Buffer) => encryptText(normalizePan(pan), key);
 
 export function decryptPan(blob: string, key: Buffer = envKey()): string {
   const [version, iv, tag, enc] = blob.split(".");
@@ -44,7 +46,18 @@ export function hashPan(pan: string, key: Buffer = envKey()): string {
   return createHmac("sha256", key).update(`pan:${normalizePan(pan)}`).digest("hex");
 }
 
+export const decryptText = decryptPan;
 export const keyFromBase64 = keyFrom;
+
+/** Decrypt for roles that may see it; `fallback` otherwise or on error. */
+export function revealText(blob: string | null, canSee: boolean, fallback = ""): string {
+  if (!blob || !canSee) return fallback;
+  try {
+    return decryptText(blob);
+  } catch {
+    return fallback;
+  }
+}
 
 /** What the database columns for a PAN look like. Throws if the key is missing. */
 export function panColumns(pan: string) {

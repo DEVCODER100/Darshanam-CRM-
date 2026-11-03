@@ -68,7 +68,7 @@ export function receivedSheet(r: ReceivedReport, note = ""): StatementSheet {
     money("Document Charges (Rs)"), // 36
   ];
   const rows: Cell[][] = r.rows.map((x) => [
-    x.no, formatReportDate(x.date), x.unit, x.customer, panCell(x.pan, x.panMissing), "-",
+    x.no, formatReportDate(x.date), x.unit, x.customer, panCell(x.pan, x.panMissing), x.joint || "-",
     x.receiptNo, x.paymentNumber, x.paidBy, x.mode, dateOrDash(x.instrumentDate), x.bank,
     x.instrumentNumber, x.total, "", 0n, x.total, x.cgst, x.sgst, 0n, x.paymentFor, 0n,
     x.loanBank, x.loanBranch, "-", x.clientCode, x.bookingCode, x.bookedBy, "-", "-", "-",
@@ -133,7 +133,7 @@ export function dueSheet(r: DueReport, note = ""): StatementSheet {
   const rows: Cell[][] = r.rows.map((x) => [
     x.no, formatReportDate(x.dueDate), x.unit, x.instalment, x.basic, x.cgst, x.sgst, 0n,
     x.other + x.doc, 0n, 0n, 0n, x.total, x.projected ? "-" : x.daysOverdue, x.customer,
-    panCell(x.pan, x.panMissing), "-", x.mobile, "-", x.loanBank, x.loanBranch,
+    panCell(x.pan, x.panMissing), x.joint || "-", x.mobile, x.phone || "-", x.loanBank, x.loanBranch,
     x.loanBranchContact, x.percentage ?? "-", x.bookingCode, x.bookedBy, "-", "-",
     x.clientCode, x.other, x.doc,
   ]);

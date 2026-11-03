@@ -166,6 +166,8 @@ export interface ReceivedRow {
   mobile: string;
   pan: string; // full for allowed roles, masked otherwise, "" when missing
   panMissing: boolean;
+  phone: string; // landline
+  joint: string; // joint applicants' names
   clientCode: string;
   bookingCode: string;
   paymentNumber: string;
@@ -235,6 +237,8 @@ export async function getReceivedReport(
         panEncrypted: customers.panEncrypted,
         panMasked: customers.panMasked,
         panHash: customers.panHash,
+        profile: customers.profile,
+        jointApplicants: customers.jointApplicants,
         source: payments.source,
         mode: payments.mode,
         reference: payments.referenceNumber,
@@ -282,6 +286,8 @@ export async function getReceivedReport(
         mobile: r.mobile,
         pan: displayPan(r, viewer.canSeePan) ?? "",
         panMissing: !hasPan,
+        phone: r.profile.landline ?? "",
+        joint: r.jointApplicants.map((j) => j.name).join(", "),
         clientCode: r.clientCode ?? "—",
         bookingCode: r.bookingCode ?? "—",
         paymentNumber: r.paymentNumber ?? "—",
@@ -314,6 +320,7 @@ export async function getReceivedReport(
         clientCode: r.clientCode,
         bookingCode: r.bookingCode,
         project: r.project ?? "",
+        unitType: r.propertyType,
         paymentTypeKey: r.paymentType,
         stageBased: r.stageBased,
         panHash: r.panHash,
@@ -370,6 +377,9 @@ interface BookingInfo {
   panEncrypted: string | null;
   panMasked: string | null;
   panHash: string | null;
+  unitType: string;
+  phone: string;
+  joint: string;
   paymentType: string; // label
   paymentTypeKey: "self_finance" | "bank_loan" | "installment";
   stageBased: boolean;
@@ -398,6 +408,8 @@ async function loadBookings(): Promise<BookingInfo[]> {
         panEncrypted: customers.panEncrypted,
         panMasked: customers.panMasked,
         panHash: customers.panHash,
+        profile: customers.profile,
+        jointApplicants: customers.jointApplicants,
         loanBank: loans.bankName,
         loanBranch: loans.branchName,
         loanBranchContact: loans.branchContact,
@@ -440,6 +452,9 @@ async function loadBookings(): Promise<BookingInfo[]> {
     panEncrypted: b.panEncrypted,
     panMasked: b.panMasked,
     panHash: b.panHash,
+    unitType: b.propertyType,
+    phone: b.profile.landline ?? "",
+    joint: b.jointApplicants.map((j) => j.name).join(", "),
     paymentType: paymentTypeLabel(b.paymentType, b.stageBased),
     paymentTypeKey: b.paymentType,
     stageBased: b.stageBased,
@@ -464,6 +479,8 @@ export interface DueRow {
   mobile: string;
   pan: string;
   panMissing: boolean;
+  phone: string;
+  joint: string;
   paymentType: string;
   instalment: string;
   percentage: number | null; // percent, e.g. 10 or 11.54
@@ -534,6 +551,8 @@ export async function getDueReport(
           mobile: b.mobile,
           pan: displayPan(b, viewer.canSeePan) ?? "",
           panMissing: !hasPan,
+          phone: b.phone,
+          joint: b.joint,
           paymentType: b.paymentType,
           instalment,
           percentage: d.item.percentageBps === null ? null : d.item.percentageBps / 100,
@@ -558,6 +577,7 @@ export async function getDueReport(
           clientCode: b.clientCode,
           bookingCode: b.bookingCode,
           project: b.project,
+          unitType: b.unitType,
           paymentTypeKey: b.paymentTypeKey,
           stageBased: b.stageBased,
           panHash: b.panHash,

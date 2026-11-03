@@ -123,6 +123,14 @@ export const users = pgTable(
   }),
 );
 
+/** A joint applicant; the PAN is stored encrypted. */
+export interface JointApplicant {
+  name: string;
+  mobile: string;
+  relation: string;
+  panEncrypted: string;
+}
+
 export const customers = pgTable(
   "customers",
   {
@@ -141,6 +149,12 @@ export const customers = pgTable(
     panHash: text("pan_hash"),
     panExemptReason: text("pan_exempt_reason"),
     clientCode: text("client_code"),
+    // Aadhaar / passport number, encrypted like the PAN (masked copy is aadhaarMasked).
+    idProofEncrypted: text("id_proof_encrypted"),
+    // Everything else on the Register Client form (title, DOB, city, company...);
+    // keys are listed in lib/customer-profile.ts.
+    profile: jsonb("profile").$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
+    jointApplicants: jsonb("joint_applicants").$type<JointApplicant[]>().notNull().default(sql`'[]'::jsonb`),
     address: text("address"),
     salesExecutive: text("sales_executive"),
     notes: text("notes"),
@@ -166,9 +180,16 @@ export const units = pgTable(
     projectName: text("project_name").notNull().default(""),
     unitType: text("unit_type").notNull(),
     unitNumber: text("unit_number").notNull(),
+    // A block holds the unit for someone until `unblockOn` (null = never expires).
+    // Expiry is applied on read; every block and release is in the audit log.
     blocked: boolean("blocked").notNull().default(false),
     blockReason: text("block_reason"),
     blockedAt: timestamp("blocked_at", { withTimezone: true }),
+    blockCustomerId: uuid("block_customer_id").references(() => customers.id, { onDelete: "set null" }),
+    blockName: text("block_name"),
+    blockMobile: text("block_mobile"),
+    blockedBy: uuid("blocked_by").references(() => users.id, { onDelete: "set null" }),
+    unblockOn: date("unblock_on"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

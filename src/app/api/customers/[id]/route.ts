@@ -8,7 +8,7 @@ import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, jsonError } from "@/lib/api";
 import { customerUpdateSchema } from "@/lib/validators";
-import { maskSensitive } from "@/lib/masking";
+import { extraColumns } from "@/lib/customer-write";
 
 type Params = { params: { id: string } };
 
@@ -69,10 +69,7 @@ export async function PATCH(req: Request, { params }: Params) {
       panExemptReason: input.noPanReason,
     });
   }
-  if (input.aadhaarNumber !== undefined)
-    update.aadhaarMasked = input.aadhaarNumber
-      ? maskSensitive(input.aadhaarNumber)
-      : null;
+  Object.assign(update, extraColumns(input));
   if (input.salesExecutive !== undefined)
     update.salesExecutive = input.salesExecutive || null;
   if (input.notes !== undefined) update.notes = input.notes || null;

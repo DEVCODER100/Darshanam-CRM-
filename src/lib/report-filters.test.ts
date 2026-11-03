@@ -24,6 +24,7 @@ const base = {
   clientCode: "CL026",
   bookingCode: "BI026",
   project: "Tower A",
+  unitType: "Apartment",
   paymentTypeKey: "bank_loan" as const,
   stageBased: false,
   panHash: "hash-maulik",
@@ -185,6 +186,16 @@ describe("due filters", () => {
   it("loan bank, spelling-insensitive", () => {
     expect(matchesDue(due({ loanBank: "HDFC" }), { loanBank: "hdfc bank" })).toBe(true);
     expect(matchesDue(due({ loanBank: "SBI" }), { loanBank: "hdfc" })).toBe(false);
+  });
+  it("unit type and minimum overdue days", () => {
+    expect(matchesDue(due(), { unitType: "apartment" })).toBe(true);
+    expect(matchesDue(due(), { unitType: "Villa" })).toBe(false);
+    expect(matchesDue(due({ daysOverdue: 62 }), { minDays: 60 })).toBe(true);
+    expect(matchesDue(due({ daysOverdue: 62 }), { minDays: 90 })).toBe(false);
+    expect(matchesDue(due({ projected: true, daysOverdue: 0 }), { minDays: 1 })).toBe(false);
+    expect(parseDueFilters({ days: "45", utype: "Villa" })).toMatchObject({ minDays: 45, unitType: "Villa" });
+    expect(parseDueFilters({ days: "abc" }).minDays).toBeUndefined();
+    expect(matchesReceived(received(), { unitType: "Villa" })).toBe(false);
   });
   it("account status and PAN missing work on the due report too", () => {
     expect(matchesDue(due(), { status: "dues_pending" })).toBe(true);

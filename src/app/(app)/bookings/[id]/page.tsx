@@ -288,7 +288,6 @@ export default async function BookingDetailPage({
             bookingId={booking.id}
             canEdit={!!user && can(user.role, "schedule:edit")}
             gstBps={cost?.gstPercentBps ?? 0}
-            docBps={cost?.documentationPercentBps ?? 0}
             totalPaid={o.totalPaid}
             price={cost?.agreementValue || cost?.baseCost || 0n}
             loanAmount={loan?.loanAmount ?? null}

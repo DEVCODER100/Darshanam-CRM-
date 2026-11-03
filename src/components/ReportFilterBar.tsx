@@ -111,6 +111,13 @@ export function ReportFilterBar({
           <Field label="Account status">
             <Select name="status" value={val("status")} options={ACCOUNT_STATUS_LABELS} />
           </Field>
+          <Field label="Unit type">
+            <Select
+              name="utype"
+              value={val("utype")}
+              options={Object.fromEntries(["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"].map((t) => [t, t]))}
+            />
+          </Field>
           <Field label="PAN">
             <Select name="pan" value={val("pan")} options={{ missing: "PAN missing" }} all="All" />
           </Field>
@@ -159,6 +166,9 @@ export function ReportFilterBar({
                   value={val("age")}
                   options={Object.fromEntries(AGE_BANDS.map((a) => [a, `${a} days`]))}
                 />
+              </Field>
+              <Field label="Overdue at least (days)">
+                <input name="days" defaultValue={val("days")} inputMode="numeric" placeholder="e.g. 30" className="field" />
               </Field>
               <Field label="Loan bank">
                 <input name="lbank" list="rf-lbanks" defaultValue={val("lbank")} placeholder="SBI, HDFC…" className="field" />

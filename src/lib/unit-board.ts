@@ -4,8 +4,10 @@
  * blocked it, otherwise "available". Nothing about booked-ness is stored.
  */
 import { eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, customers, units } from "@/db/schema";
+import { bookings, customers, units, users } from "@/db/schema";
+import { blockActive } from "./unit-block";
 import { computeGstStatus } from "./gst-calc";
 import { loadBookingDetail, todayISO, type BookingDetail } from "./booking-detail";
 import {
@@ -25,7 +27,16 @@ export interface BoardUnit {
   status: UnitStatus;
   owner: string | null;
   bookingId: string | null;
-  blockReason: string | null;
+  /** Who the unit is held for, set while the unit is blocked. */
+  block: {
+    name: string;
+    mobile: string;
+    customerId: string | null;
+    reason: string | null;
+    by: string | null;
+    on: string | null; // when it was blocked (ISO date)
+    until: string | null; // null = never
+  } | null;
 }
 
 export interface BoardData {
@@ -39,6 +50,7 @@ export const unitName = (type: string, number: string) =>
   number.startsWith("(") ? type : `${type} ${number}`;
 
 export async function getBoard(): Promise<BoardData> {
+  const blocker = alias(users, "blocker");
   const rows = await db
     .select({
       id: units.id,
@@ -47,25 +59,45 @@ export async function getBoard(): Promise<BoardData> {
       unitNumber: units.unitNumber,
       blocked: units.blocked,
       blockReason: units.blockReason,
+      blockedAt: units.blockedAt,
+      blockName: units.blockName,
+      blockMobile: units.blockMobile,
+      blockCustomerId: units.blockCustomerId,
+      unblockOn: units.unblockOn,
+      blockedByName: blocker.name,
       bookingId: bookings.id,
       owner: customers.fullName,
     })
     .from(units)
     .leftJoin(bookings, eq(bookings.unitId, units.id))
-    .leftJoin(customers, eq(customers.id, bookings.customerId));
+    .leftJoin(customers, eq(customers.id, bookings.customerId))
+    .leftJoin(blocker, eq(blocker.id, units.blockedBy));
 
   const list: BoardUnit[] = rows
-    .map((r) => ({
-      id: r.id,
-      projectName: r.projectName,
-      unitType: r.unitType,
-      unitNumber: r.unitNumber,
-      name: unitName(r.unitType, r.unitNumber),
-      status: (r.bookingId ? "booked" : r.blocked ? "blocked" : "available") as UnitStatus,
-      owner: r.owner,
-      bookingId: r.bookingId,
-      blockReason: r.blockReason,
-    }))
+    .map((r) => {
+      const held = !r.bookingId && blockActive(r);
+      return {
+        id: r.id,
+        projectName: r.projectName,
+        unitType: r.unitType,
+        unitNumber: r.unitNumber,
+        name: unitName(r.unitType, r.unitNumber),
+        status: (r.bookingId ? "booked" : held ? "blocked" : "available") as UnitStatus,
+        owner: r.owner,
+        bookingId: r.bookingId,
+        block: held
+          ? {
+              name: r.blockName ?? "Unknown",
+              mobile: r.blockMobile ?? "",
+              customerId: r.blockCustomerId,
+              reason: r.blockReason,
+              by: r.blockedByName,
+              on: r.blockedAt?.toISOString().slice(0, 10) ?? null,
+              until: r.unblockOn,
+            }
+          : null,
+      };
+    })
     .sort(
       (a, b) =>
         a.projectName.localeCompare(b.projectName) ||

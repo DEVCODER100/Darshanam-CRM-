@@ -6,7 +6,7 @@ import { customers } from "@/db/schema";
 import { CustomerForm } from "@/components/CustomerForm";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
-import { displayPan } from "@/lib/pan";
+import { displayPan, revealText } from "@/lib/pan";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,8 @@ export default async function EditCustomerPage({
   });
   if (!c) notFound();
   const user = await getCurrentUser();
-  const shownPan = displayPan(c, !!user && can(user.role, "sensitive:view")) ?? "";
+  const canSee = !!user && can(user.role, "sensitive:view");
+  const shownPan = displayPan(c, canSee) ?? "";
 
   return (
     <div>
@@ -31,7 +32,9 @@ export default async function EditCustomerPage({
       <CustomerForm
         mode="edit"
         customerId={c.id}
+        initialJoint={c.jointApplicants.map((j) => ({ ...j, panNumber: "" }))}
         initial={{
+          ...c.profile,
           fullName: c.fullName,
           mobile: c.mobile,
           alternateMobile: c.alternateMobile ?? "",
@@ -41,7 +44,7 @@ export default async function EditCustomerPage({
           // (blank means "leave the stored PAN as it is").
           panNumber: shownPan.includes("X") ? "" : shownPan,
           noPanReason: c.panExemptReason ?? "",
-          aadhaarNumber: "",
+          idProofNumber: revealText(c.idProofEncrypted, canSee),
           salesExecutive: c.salesExecutive ?? "",
           notes: c.notes ?? "",
         }}

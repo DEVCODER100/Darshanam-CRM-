@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc } from "drizzle-orm";
+import { desc, ilike, or } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,12 +10,24 @@ import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError } from "@/lib/api";
 import { customerCreateSchema } from "@/lib/validators";
-import { maskSensitive } from "@/lib/masking";
+import { extraColumns } from "@/lib/customer-write";
 
 // GET /api/customers — list (any authenticated staff).
-export async function GET() {
+// With ?q= it is a quick search (name, mobile, email, client ID) for pickers.
+export async function GET(req: Request) {
   const gate = await requireAuth();
   if (!gate.ok) return gate.response;
+
+  const q = new URL(req.url).searchParams.get("q")?.trim();
+  if (q) {
+    const like = `%${q}%`;
+    const found = await db
+      .select({ id: customers.id, fullName: customers.fullName, mobile: customers.mobile, clientCode: customers.clientCode })
+      .from(customers)
+      .where(or(ilike(customers.fullName, like), ilike(customers.mobile, like), ilike(customers.email, like), ilike(customers.clientCode, like)))
+      .limit(8);
+    return NextResponse.json({ customers: found });
+  }
 
   const rows = await db
     .select()
@@ -61,9 +73,7 @@ export async function POST(req: Request) {
     mobile: input.mobile,
     alternateMobile: input.alternateMobile || null,
     email: input.email || null,
-    aadhaarMasked: input.aadhaarNumber
-      ? maskSensitive(input.aadhaarNumber)
-      : null,
+    ...extraColumns(input),
     address: input.address || null,
     salesExecutive: input.salesExecutive || null,
     notes: input.notes || null,

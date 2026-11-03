@@ -33,7 +33,6 @@ interface Row {
   gstTouched: boolean;
   other: string;
   doc: string;
-  docTouched: boolean;
   percentage: string;
 }
 
@@ -54,7 +53,6 @@ const blankRow = (): Row => ({
   gstTouched: false,
   other: "",
   doc: "",
-  docTouched: false,
   percentage: "",
 });
 
@@ -71,7 +69,6 @@ export function ScheduleEditor({
   initial,
   canEdit,
   gstBps = 0,
-  docBps = 0,
   totalPaid = 0n,
   price = 0n,
   loanAmount = null,
@@ -80,7 +77,6 @@ export function ScheduleEditor({
   initial: ScheduleRowInput[];
   canEdit: boolean;
   gstBps?: number; // booking GST rate in basis points, e.g. 500 = 5%
-  docBps?: number; // booking document-charge rate in basis points, e.g. 590 = 5.9%
   totalPaid?: bigint;
   price?: bigint; // agreement value the instalment percentages are taken from
   loanAmount?: bigint | null;
@@ -101,7 +97,6 @@ export function ScheduleEditor({
     gstTouched: true, // never overwrite saved GST
     other: r.otherChargeAmount,
     doc: r.documentationAmount,
-    docTouched: true,
     percentage: r.percentage,
   });
 
@@ -122,19 +117,16 @@ export function ScheduleEditor({
     const next: Partial<Row> = { basic: value };
     if (!r.gstTouched && gstBps > 0)
       next.gst = paiseToRupeeString(applyBasisPoints(paise(value), BigInt(gstBps)));
-    if (!r.docTouched && docBps > 0)
-      next.doc = paiseToRupeeString(applyBasisPoints(paise(value), BigInt(docBps)));
     patch(i, next);
   }
 
-  // A row built from a template; GST and document charges follow the booking rates.
+  // A row built from a template; GST follows the booking rate. Document charges are tracked separately.
   const planRow = (p: PlanRow): Row => ({
     ...blankRow(),
     label: p.label,
     percentage: bpsToPercentString(BigInt(p.percentBps)),
     basic: paiseToRupeeString(p.basic),
     gst: paiseToRupeeString(applyBasisPoints(p.basic, BigInt(gstBps))),
-    doc: paiseToRupeeString(applyBasisPoints(p.basic, BigInt(docBps))),
   });
 
   function choose(k: PlanKind) {
@@ -164,8 +156,8 @@ export function ScheduleEditor({
     addRow({ label, percentBps: bps, basic: applyBasisPoints(price, BigInt(bps)) });
   };
 
-  // Typing a percentage sets Basic to that share of the price, with GST and
-  // document charges recalculated at the booking rates.
+  // Typing a percentage sets Basic to that share of the price, with GST
+  // recalculated at the booking rate.
   function onPercent(i: number, value: string) {
     let bps: bigint | null = null;
     try {
@@ -177,7 +169,6 @@ export function ScheduleEditor({
       percentage: value,
       basic: paiseToRupeeString(basic),
       gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
-      doc: paiseToRupeeString(applyBasisPoints(basic, BigInt(docBps))),
     });
   }
 
@@ -358,10 +349,12 @@ export function ScheduleEditor({
             Other charges (₹)
             <input className={inp} value={r.other} placeholder="0" onChange={(e) => patch(i, { other: e.target.value })} />
           </label>
-          <label className="text-xs text-muted">
-            Document charges (₹){docBps > 0 ? ` · ${bpsToPercentString(BigInt(docBps))}%` : ""}
-            <input className={inp} value={r.doc} placeholder="0" onChange={(e) => patch(i, { doc: e.target.value, docTouched: true })} />
-          </label>
+          {paise(r.doc) > 0n && ( // only plans saved earlier with document charges still show them
+            <label className="text-xs text-muted">
+              Document charges (₹)
+              <input className={inp} value={r.doc} onChange={(e) => patch(i, { doc: e.target.value })} />
+            </label>
+          )}
           <span className="self-center text-xs text-muted">
             Total <span className="money font-medium text-ink">{formatINR(gross(r))}</span>
           </span>
@@ -393,7 +386,9 @@ export function ScheduleEditor({
         <span>Basic <span className="money">{formatINR(sum((r) => paise(r.basic)))}</span></span>
         <span>GST <span className="money">{formatINR(sum((r) => paise(r.gst)))}</span></span>
         <span>Other <span className="money">{formatINR(sum((r) => paise(r.other)))}</span></span>
-        <span>Doc <span className="money">{formatINR(sum((r) => paise(r.doc)))}</span></span>
+        {sum((r) => paise(r.doc)) > 0n && (
+          <span>Doc <span className="money">{formatINR(sum((r) => paise(r.doc)))}</span></span>
+        )}
         <span>Plan total <span className="money font-medium text-ink">{formatINR(sum(gross))}</span></span>
       </div>
       <div className="flex gap-2">

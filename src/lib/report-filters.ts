@@ -99,6 +99,7 @@ export interface CommonFilters {
   status?: AccountStatus;
   panMissing?: boolean;
   project?: string;
+  unitType?: string; // Villa, Apartment, Shop...
   min?: bigint; // paise
   max?: bigint;
 }
@@ -115,6 +116,7 @@ export interface DueFilters extends CommonFilters {
   milestone?: string; // text inside the instalment name
   when?: "overdue" | "projected";
   age?: AgeBand;
+  minDays?: number; // at least this many days overdue
   loanBank?: string;
 }
 
@@ -140,6 +142,7 @@ function parseCommon(sp: Params): CommonFilters {
     status: pick(sp.status, ["paid_in_full", "dues_pending", "up_to_date", "nothing_paid"] as const),
     panMissing: one(sp.pan) === "missing" ? true : undefined,
     project: one(sp.project),
+    unitType: one(sp.utype),
     min: money(sp.min),
     max: money(sp.max),
   };
@@ -162,6 +165,7 @@ export function parseDueFilters(sp: Params): DueFilters {
     milestone: one(sp.ms),
     when: pick(sp.when, ["overdue", "projected"] as const),
     age: pick(sp.age, AGE_BANDS),
+    minDays: Number.isInteger(Number(one(sp.days))) && Number(one(sp.days)) > 0 ? Number(one(sp.days)) : undefined,
     loanBank: one(sp.lbank),
   };
 }
@@ -179,6 +183,7 @@ export function describeFilters(f: ReceivedFilters & DueFilters): string {
   if (f.status) parts.push(ACCOUNT_STATUS_LABELS[f.status]);
   if (f.panMissing) parts.push("PAN missing");
   if (f.project) parts.push(`project "${f.project}"`);
+  if (f.unitType) parts.push(f.unitType);
   if (f.min !== undefined) parts.push(`min Rs ${f.min / 100n}`);
   if (f.max !== undefined) parts.push(`max Rs ${f.max / 100n}`);
   if (f.mode) parts.push(`mode ${f.mode}`);
@@ -189,6 +194,7 @@ export function describeFilters(f: ReceivedFilters & DueFilters): string {
   if (f.milestone) parts.push(`milestone "${f.milestone}"`);
   if (f.when) parts.push(f.when);
   if (f.age) parts.push(`${f.age} days overdue`);
+  if (f.minDays) parts.push(`${f.minDays}+ days overdue`);
   if (f.loanBank) parts.push(`loan bank ${f.loanBank}`);
   return parts.join(", ");
 }
@@ -203,6 +209,7 @@ export interface RowBase {
   clientCode: string | null;
   bookingCode: string | null;
   project: string;
+  unitType: string;
   paymentTypeKey: "self_finance" | "bank_loan" | "installment";
   stageBased: boolean;
   panHash: string | null;
@@ -241,6 +248,7 @@ function matchesCommon(row: RowBase, f: CommonFilters, ctx: FilterContext): bool
   if (f.status && row.accountStatus !== f.status) return false;
   if (f.panMissing && row.hasPan) return false;
   if (f.project && !norm(row.project).includes(norm(f.project))) return false;
+  if (f.unitType && norm(row.unitType) !== norm(f.unitType)) return false;
   if (f.min !== undefined && row.amount < f.min) return false;
   if (f.max !== undefined && row.amount > f.max) return false;
   return true;
@@ -278,6 +286,7 @@ export function matchesDue(row: DueRowFields, f: DueFilters, ctx: FilterContext 
   if (f.when === "overdue" && row.projected) return false;
   if (f.when === "projected" && !row.projected) return false;
   if (f.age && (row.projected || ageBand(row.daysOverdue) !== f.age)) return false;
+  if (f.minDays && (row.projected || row.daysOverdue < f.minDays)) return false;
   if (f.loanBank && bankKey(row.loanBank) !== bankKey(f.loanBank)) return false;
   return true;
 }

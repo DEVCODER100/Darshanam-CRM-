@@ -7,7 +7,9 @@ import { DocumentPanel } from "@/components/DocumentPanel";
 import { StagePanel } from "@/components/StagePanel";
 import { can } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/rbac";
-import { displayPan } from "@/lib/pan";
+import { displayPan, revealText } from "@/lib/pan";
+import { jointView } from "@/lib/customer-public";
+import { PROFILE_SECTIONS } from "@/lib/customer-profile";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,13 @@ export default async function CustomerDetailPage({
   const stageCostMap = new Map(stageCosts.map((c) => [c.bookingId, c.totalCost]));
   const stagePaidMap = new Map(stagePaid.map((p) => [p.bookingId, p]));
 
+  const canSee = !!user && can(user.role, "sensitive:view");
+  const joint = jointView(customer, canSee);
+  const extra = PROFILE_SECTIONS.map((s) => ({
+    title: s.title,
+    fields: s.fields.filter((f) => !f.core && customer.profile[f.key]),
+  })).filter((s) => s.fields.length > 0);
+
   return (
     <div className="space-y-7">
       <div>
@@ -86,12 +95,46 @@ export default async function CustomerDetailPage({
             mono={!!customer.panEncrypted || !!customer.panMasked}
           />
           <Info label="Client code" value={customer.clientCode ?? "—"} mono />
-          <Info label="Aadhaar" value={customer.aadhaarMasked ?? "—"} mono />
+          <Info
+            label="ID proof (Aadhaar / passport)"
+            value={revealText(customer.idProofEncrypted, canSee, customer.aadhaarMasked ?? "") || "—"}
+            mono
+          />
           <Info label="Sales executive" value={customer.salesExecutive ?? "—"} />
           <Info label="Address" value={customer.address ?? "—"} />
           <Info label="Notes" value={customer.notes ?? "—"} />
         </dl>
       </section>
+
+      {extra.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">More details</h2>
+          <div className="card space-y-4 p-4 text-sm">
+            {extra.map((s) => (
+              <div key={s.title}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">{s.title}</p>
+                <dl className="grid gap-4 sm:grid-cols-3">
+                  {s.fields.map((f) => <Info key={f.key} label={f.label} value={customer.profile[f.key]} />)}
+                </dl>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {joint.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Joint applicants</h2>
+          <div className="card divide-y divide-hairline text-sm">
+            {joint.map((j, i) => (
+              <div key={i} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                <span className="font-medium">{j.name} <span className="font-normal text-muted">({j.relation})</span></span>
+                <span className="text-muted">{j.mobile}{j.pan ? ` · PAN ${j.pan}` : ""}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="mb-3 flex items-center justify-between">

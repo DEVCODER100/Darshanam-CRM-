@@ -5,13 +5,15 @@ import { stageDisbursement } from "@/lib/stage-ladder";
 import { stageLabel } from "@/lib/stage";
 import { PaymentEntry } from "@/components/PaymentEntry";
 import { StageUpdateButton } from "@/components/StageUpdateButton";
-import { UnitBlock } from "@/components/UnitBlock";
+import { UnitBlock, type StaffChoice } from "@/components/UnitBlock";
 
 export interface PanelAccess {
   canBook: boolean;
   canPay: boolean;
   canEditBooking: boolean;
   canManageUnits: boolean;
+  staff: StaffChoice[];
+  currentUserId: string;
 }
 
 const PAYMENT_TYPE: Record<string, string> = {
@@ -56,17 +58,36 @@ export function UnitPanel({
             {access.canBook && (
               <Link href={`/bookings/new?unitId=${unit.id}`} className="btn-primary">Book this unit</Link>
             )}
-            {access.canManageUnits && <UnitBlock unitId={unit.id} blocked={false} />}
+            {access.canManageUnits && (
+              <UnitBlock unitId={unit.id} blocked={false} staff={access.staff} currentUserId={access.currentUserId} />
+            )}
           </div>
         </div>
       )}
 
-      {unit.status === "blocked" && (
+      {unit.status === "blocked" && unit.block && (
         <div className="space-y-3">
-          <p className="text-sm text-muted">
-            Blocked{unit.blockReason ? `: ${unit.blockReason}` : "."}
-          </p>
-          {access.canManageUnits && <UnitBlock unitId={unit.id} blocked />}
+          <section className="grid grid-cols-2 gap-3 text-sm">
+            <Info label="Held for" value={unit.block.name} />
+            <Info label="Contact" value={unit.block.mobile || "—"} />
+            <Info label="Blocked by" value={unit.block.by ?? "—"} />
+            <Info label="Blocked on" value={unit.block.on ?? "—"} />
+            <Info label="Unblocks on" value={unit.block.until ?? "Never"} />
+            <Info label="Remarks" value={unit.block.reason ?? "—"} />
+          </section>
+          <div className="flex flex-wrap gap-2">
+            {access.canBook && (
+              <Link
+                href={`/bookings/new?unitId=${unit.id}${unit.block.customerId ? `&customerId=${unit.block.customerId}` : ""}`}
+                className="btn-primary"
+              >
+                Book this unit
+              </Link>
+            )}
+            {access.canManageUnits && (
+              <UnitBlock unitId={unit.id} blocked staff={access.staff} currentUserId={access.currentUserId} />
+            )}
+          </div>
         </div>
       )}
 

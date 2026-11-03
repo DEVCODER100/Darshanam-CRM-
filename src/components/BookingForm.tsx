@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { computeCost } from "@/lib/cost";
 import { rupeesToPaise, percentToBps, formatINR } from "@/lib/money";
@@ -31,6 +32,7 @@ const today = new Date().toISOString().slice(0, 10);
 
 export function BookingForm({
   customerId,
+  defaultCustomerId,
   customers,
   unit,
   mode = "create",
@@ -38,6 +40,7 @@ export function BookingForm({
   initial,
 }: {
   customerId?: string; // fixed customer (opened from a customer page)
+  defaultCustomerId?: string; // pre-selected in the picker (e.g. who the unit was blocked for)
   customers?: { id: string; name: string }[]; // pick one when no customerId
   unit?: { id: string; projectName: string; unitType: string; unitNumber: string };
   mode?: "create" | "edit";
@@ -66,7 +69,7 @@ export function BookingForm({
     documentationPercent: "0",
     ...initial,
   });
-  const [pickedCustomer, setPickedCustomer] = useState("");
+  const [pickedCustomer, setPickedCustomer] = useState(defaultCustomerId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -198,6 +201,14 @@ export function BookingForm({
               ))}
             </select>
           </Field>
+          {unit && (
+            <Link
+              href={`/customers/new?returnTo=${encodeURIComponent(`/bookings/new?unitId=${unit.id}`)}`}
+              className="text-sm text-brass-dark hover:underline"
+            >
+              + Register a new client
+            </Link>
+          )}
         </Section>
       )}
 
