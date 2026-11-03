@@ -1,0 +1,146 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import type { MapLabel } from "@/db/schema";
+import { detectLabels } from "@/lib/map-boxes";
+import { loadPdfJs } from "@/lib/pdfjs-loader";
+
+const MAX_SIDE = 3200; // longest side of the stored map image, in pixels
+const MAX_BYTES = 4_200_000; // stay under the host's upload limit
+
+const toBlob = (c: HTMLCanvasElement, q: number) =>
+  new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("Could not encode the image"))), "image/jpeg", q));
+
+/** Squeeze a canvas into a JPEG under the upload limit (lower quality, then smaller size). */
+async function shrink(canvas: HTMLCanvasElement): Promise<Blob> {
+  let c = canvas;
+  for (let scale = 1; ; scale *= 0.8) {
+    if (scale < 1) {
+      const next = document.createElement("canvas");
+      next.width = Math.round(canvas.width * scale);
+      next.height = Math.round(canvas.height * scale);
+      next.getContext("2d")!.drawImage(canvas, 0, 0, next.width, next.height);
+      c = next;
+    }
+    for (const q of [0.9, 0.78, 0.65]) {
+      const blob = await toBlob(c, q);
+      if (blob.size <= MAX_BYTES) return blob;
+    }
+    if (scale < 0.3) throw new Error("That map is too large to upload");
+  }
+}
+
+/** First page of a PDF as an image, plus the unit-number-like text on it. */
+async function fromPdf(file: File) {
+  const lib = await loadPdfJs();
+  const page = await (await lib.getDocument({ data: await file.arrayBuffer() }).promise).getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: Math.min(4, MAX_SIDE / Math.max(base.width, base.height)) });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(viewport.width);
+  canvas.height = Math.round(viewport.height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  const items: MapLabel[] = [];
+  for (const it of (await page.getTextContent()).items) {
+    if (!it.str?.trim()) continue;
+    const t = lib.Util.transform(viewport.transform, it.transform); // page space -> image pixels
+    const h = it.height * viewport.scale;
+    items.push({
+      label: it.str,
+      x: (t[4] / canvas.width) * 100,
+      y: ((t[5] - h) / canvas.height) * 100,
+      w: ((it.width * viewport.scale) / canvas.width) * 100,
+      h: (h / canvas.height) * 100,
+    });
+  }
+  return { canvas, detected: detectLabels(items) };
+}
+
+async function fromImage(file: File) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * k);
+  canvas.height = Math.round(bmp.height * k);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return { canvas, detected: [] as MapLabel[] };
+}
+
+/** Upload a site map (picture or PDF). PDFs are turned into a picture here, in the browser. */
+export function MapUpload() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [project, setProject] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file) return;
+    setError(null);
+    try {
+      setStatus(/\.pdf$/i.test(file.name) ? "Reading the PDF…" : "Preparing the picture…");
+      const { canvas, detected } = /\.pdf$/i.test(file.name) ? await fromPdf(file) : await fromImage(file);
+      setStatus("Uploading…");
+      const form = new FormData();
+      form.append("file", new File([await shrink(canvas)], "map.jpg", { type: "image/jpeg" }));
+      form.append("name", name || file.name.replace(/\.[^.]+$/, ""));
+      form.append("projectName", project);
+      form.append("width", String(canvas.width));
+      form.append("height", String(canvas.height));
+      form.append("detected", JSON.stringify(detected));
+      const res = await fetch("/api/maps", { method: "POST", body: form });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
+      setOpen(false);
+      router.push(`/dashboard?view=map&map=${body.id}&edit=1`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    }
+    setStatus(null);
+  }
+
+  if (!open)
+    return (
+      <button onClick={() => setOpen(true)} className="btn-secondary px-3 py-1.5">
+        Upload map
+      </button>
+    );
+
+  return (
+    <form onSubmit={submit} className="card basis-full space-y-3 p-4 text-sm">
+      <div className="flex items-center justify-between">
+        <p className="font-medium">Upload a site map</p>
+        <button type="button" onClick={() => setOpen(false)} className="text-muted hover:text-ink">✕</button>
+      </div>
+      <p className="text-muted">
+        A PDF (first page) or a picture (PNG / JPG). If the PDF has typed unit numbers, boxes can be created from them automatically;
+        otherwise you place boxes by hand or with the auto-grid.
+      </p>
+      <input type="file" accept=".pdf,.png,.jpg,.jpeg" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs text-muted">
+          Map name
+          <input className="field mt-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Phase 1 layout" />
+        </label>
+        <label className="block text-xs text-muted">
+          Project (optional)
+          <input className="field mt-1" value={project} onChange={(e) => setProject(e.target.value)} />
+        </label>
+      </div>
+      <button disabled={!file || !!status} className="btn-primary">{status ?? "Upload"}</button>
+      {error && <p className="text-danger">{error}</p>}
+    </form>
+  );
+}

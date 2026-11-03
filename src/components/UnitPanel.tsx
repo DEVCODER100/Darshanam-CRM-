@@ -43,7 +43,11 @@ export function UnitPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-medium">{unit.name}</h2>
-          {unit.projectName && <p className="text-xs text-muted">{unit.projectName}</p>}
+          <p className="text-xs text-muted">
+            {[unit.projectName, unit.areaSqft && `${Number(unit.areaSqft).toLocaleString("en-IN")} sq ft`, unit.floor && `Floor ${unit.floor}`]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <StatusPill status={unit.status} />

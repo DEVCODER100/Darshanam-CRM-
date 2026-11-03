@@ -57,6 +57,27 @@
       "when": 1793690884469,
       "tag": "0007_mushy_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793693358481,
+      "tag": "0008_fuzzy_talon",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793693664492,
+      "tag": "0009_deep_hawkeye",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793694301033,
+      "tag": "0010_melodic_toro",
+      "breakpoints": true
     }
   ]
 }

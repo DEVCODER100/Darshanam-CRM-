@@ -18,6 +18,8 @@ import {
   date,
   timestamp,
   jsonb,
+  numeric,
+  real,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -170,6 +172,33 @@ export const customers = pgTable(
   }),
 );
 
+/** A label read from a map file (PDF text), as percent of the map. */
+export interface MapLabel {
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// An uploaded site map (image). Units sit on it as boxes; positions are stored
+// as percent of the map (see units.map_x ...) so they fit any screen size.
+export const siteMaps = pgTable("site_maps", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  projectName: text("project_name").notNull().default(""),
+  fileUrl: text("file_url").notNull(), // /api/maps/<id>/image
+  // The JPEG itself, base64. Kept in the database so maps work everywhere (local and live)
+  // without separate file storage. Never select it in list queries.
+  imageData: text("image_data").notNull().default(""),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  // Unit labels found in the source PDF's text, offered as ready-made boxes.
+  detected: jsonb("detected").$type<MapLabel[]>().notNull().default(sql`'[]'::jsonb`),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // A unit (bungalow, flat, shop...) exists before anyone books it, so the unit
 // board can show every unit. "Booked" is NOT stored: a unit is booked when a
 // booking points at it. Only `blocked` is set by hand.
@@ -180,6 +209,14 @@ export const units = pgTable(
     projectName: text("project_name").notNull().default(""),
     unitType: text("unit_type").notNull(),
     unitNumber: text("unit_number").notNull(),
+    areaSqft: numeric("area_sqft", { precision: 10, scale: 2 }),
+    floor: text("floor"),
+    // Where the unit's box sits on a site map (percent of the map; null = not placed).
+    mapId: uuid("map_id").references(() => siteMaps.id, { onDelete: "set null" }),
+    mapX: real("map_x"),
+    mapY: real("map_y"),
+    mapW: real("map_w"),
+    mapH: real("map_h"),
     // A block holds the unit for someone until `unblockOn` (null = never expires).
     // Expiry is applied on read; every block and release is in the audit log.
     blocked: boolean("blocked").notNull().default(false),

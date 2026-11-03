@@ -1,0 +1,1 @@
+ALTER TABLE "site_maps" ADD COLUMN "image_data" text DEFAULT '' NOT NULL;

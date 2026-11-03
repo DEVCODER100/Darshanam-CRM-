@@ -2,28 +2,20 @@ import Link from "next/link";
 import { getBoard, getUnitPanel, type UnitStatus } from "@/lib/unit-board";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
-import { ne } from "drizzle-orm";
+import { asc, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { siteMaps, users } from "@/db/schema";
+import { BOX, STATUSES } from "@/lib/unit-style";
+import { MapBoard } from "@/components/MapBoard";
+import { MapUpload } from "@/components/MapUpload";
 import { UnitAdd } from "@/components/UnitAdd";
+import { UnitImport } from "@/components/UnitImport";
 import { UnitQuickActions } from "@/components/UnitQuickActions";
 import { UnitPanel } from "@/components/UnitPanel";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES: { key: UnitStatus; label: string; dot: string }[] = [
-  { key: "booked", label: "Booked", dot: "bg-danger" },
-  { key: "available", label: "Available", dot: "bg-paid" },
-  { key: "blocked", label: "Blocked", dot: "bg-slate2" },
-];
-
-const BOX: Record<UnitStatus, string> = {
-  booked: "border-danger/30 bg-danger-bg text-danger",
-  available: "border-paid/30 bg-paid-bg text-paid",
-  blocked: "border-hairline bg-inkbg text-slate2",
-};
-
-type Params = { unit?: string; type?: string; status?: string; q?: string; project?: string };
+type Params = { unit?: string; type?: string; status?: string; q?: string; project?: string; view?: string; map?: string; edit?: string };
 
 /** Real staff for the "Blocked by" list; an email tells apart people with the same name. */
 async function staffChoices() {
@@ -46,7 +38,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
   const q = searchParams.q?.trim().toLowerCase();
 
   const href = (patch: Partial<Params>) => {
-    const merged = { ...searchParams, ...patch };
+    const merged = { ...searchParams, edit: undefined, ...patch };
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const s = p.toString();
@@ -69,6 +61,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
   }
   const showHeadings = board.projects.length > 0;
 
+  const maps = await db
+    .select({ id: siteMaps.id, name: siteMaps.name, fileUrl: siteMaps.fileUrl, width: siteMaps.width, height: siteMaps.height, detected: siteMaps.detected })
+    .from(siteMaps)
+    .orderBy(asc(siteMaps.createdAt));
+  const activeMap = maps.find((m) => m.id === searchParams.map) ?? maps[0];
+  const showMap = !!activeMap && searchParams.view !== "grid";
+  const visibleIds = new Set(visible.map((u) => u.id));
+
   const panel = searchParams.unit ? await getUnitPanel(searchParams.unit) : null;
   const access = {
     canBook: !!user && can(user.role, "booking:create"),
@@ -89,7 +89,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
           <h1 className="text-2xl font-medium">Unit board</h1>
           <p className="text-sm text-muted">Click a unit to see its owner, payments and dues.</p>
         </div>
-        {access.canManageUnits && <UnitAdd />}
+        {access.canManageUnits && (
+          <div className="flex flex-wrap items-start gap-2">
+            <MapUpload />
+            <UnitImport />
+            <UnitAdd />
+          </div>
+        )}
       </div>
 
       {(access.canBook || access.canManageUnits) && (
@@ -100,6 +106,34 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
           canBook={access.canBook}
           canBlock={access.canManageUnits}
         />
+      )}
+
+      {maps.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {[["map", "Map"], ["grid", "Grid"]].map(([v, label]) => (
+            <Link
+              key={v}
+              href={href({ view: v })}
+              className={`rounded-md border px-3 py-1 text-sm ${(v === "map") === showMap ? "border-ink bg-ink text-white" : "border-hairline bg-surface text-muted hover:text-ink"}`}
+            >
+              {label}
+            </Link>
+          ))}
+          {showMap && maps.length > 1 && (
+            <>
+              <span className="ml-2 text-sm text-muted">Map:</span>
+              {maps.map((m) => (
+                <Link
+                  key={m.id}
+                  href={href({ map: m.id, unit: undefined })}
+                  className={`rounded-md border px-3 py-1 text-sm ${m.id === activeMap.id ? "border-ink bg-surface font-medium" : "border-hairline bg-surface text-muted hover:text-ink"}`}
+                >
+                  {m.name}
+                </Link>
+              ))}
+            </>
+          )}
+        </div>
       )}
 
       {/* Legend + status filter */}
@@ -143,14 +177,30 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
         <form method="get" className="ml-auto flex gap-2">
           {status && <input type="hidden" name="status" value={status} />}
           {type && <input type="hidden" name="type" value={type} />}
+          {searchParams.view && <input type="hidden" name="view" value={searchParams.view} />}
+          {searchParams.map && <input type="hidden" name="map" value={searchParams.map} />}
           <input name="q" defaultValue={searchParams.q} placeholder="Find a unit or owner" className="field w-56" />
           <button className="btn-secondary px-3 py-1.5">Find</button>
         </form>
       </div>
 
       <div className={panel ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_470px]" : ""}>
-        <div className="space-y-5">
-          {board.counts.total === 0 ? (
+        <div className="min-w-0 space-y-5">
+          {showMap ? (
+            <MapBoard
+              key={activeMap.id}
+              map={{ id: activeMap.id, name: activeMap.name, fileUrl: activeMap.fileUrl, width: activeMap.width, height: activeMap.height, detected: activeMap.detected }}
+              boxes={board.units
+                .filter((u) => u.map?.id === activeMap.id)
+                .map((u) => ({ unitId: u.id, number: u.unitNumber, name: u.name, status: u.status, owner: u.owner, ...u.map! }))}
+              free={board.units.filter((u) => !u.map).map((u) => ({ id: u.id, number: u.unitNumber, type: u.unitType }))}
+              dimmed={board.units.filter((u) => !visibleIds.has(u.id)).map((u) => u.id)}
+              selectedId={searchParams.unit}
+              hrefBase={href({ unit: "__ID__" })}
+              canEdit={access.canManageUnits}
+              startEditing={searchParams.edit === "1"}
+            />
+          ) : board.counts.total === 0 ? (
             <p className="card p-6 text-sm text-muted">
               No units yet.{" "}
               {access.canManageUnits

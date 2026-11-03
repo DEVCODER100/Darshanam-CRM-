@@ -27,6 +27,10 @@ export interface BoardUnit {
   status: UnitStatus;
   owner: string | null;
   bookingId: string | null;
+  areaSqft: string | null;
+  floor: string | null;
+  /** Where its box sits on a site map (percent of the map), if placed. */
+  map: { id: string; x: number; y: number; w: number; h: number } | null;
   /** Who the unit is held for, set while the unit is blocked. */
   block: {
     name: string;
@@ -57,6 +61,13 @@ export async function getBoard(): Promise<BoardData> {
       projectName: units.projectName,
       unitType: units.unitType,
       unitNumber: units.unitNumber,
+      areaSqft: units.areaSqft,
+      floor: units.floor,
+      mapId: units.mapId,
+      mapX: units.mapX,
+      mapY: units.mapY,
+      mapW: units.mapW,
+      mapH: units.mapH,
       blocked: units.blocked,
       blockReason: units.blockReason,
       blockedAt: units.blockedAt,
@@ -85,6 +96,12 @@ export async function getBoard(): Promise<BoardData> {
         status: (r.bookingId ? "booked" : held ? "blocked" : "available") as UnitStatus,
         owner: r.owner,
         bookingId: r.bookingId,
+        areaSqft: r.areaSqft,
+        floor: r.floor,
+        map:
+          r.mapId && r.mapX !== null && r.mapY !== null && r.mapW !== null && r.mapH !== null
+            ? { id: r.mapId, x: r.mapX, y: r.mapY, w: r.mapW, h: r.mapH }
+            : null,
         block: held
           ? {
               name: r.blockName ?? "Unknown",

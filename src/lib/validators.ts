@@ -219,6 +219,49 @@ export const unitCreateSchema = z
     message: "Give a unit number, or a count to create several",
   });
 
+export const unitImportSchema = z.object({
+  rows: z
+    .array(
+      z.object({
+        project: z.string().trim().default(""),
+        type: z.enum(UNIT_TYPES),
+        number: z.string().trim().min(1),
+        area: z.string().nullable().default(null),
+        floor: z.string().nullable().default(null),
+      }),
+    )
+    .min(1, "Nothing to import")
+    .max(5000),
+  dryRun: z.boolean().default(true),
+});
+
+const pct = (min = 0) => z.number().min(min).max(100);
+
+/** Unit labels read from a map file (percent of the map). */
+export const mapLabelsSchema = z
+  .array(z.object({ label: z.string().trim().min(1).max(40), x: pct(), y: pct(), w: pct(), h: pct() }))
+  .max(3000);
+
+// Every box on a map: an existing unit, or a new unit to create where it sits.
+export const mapBoxesSchema = z.object({
+  boxes: z
+    .array(
+      z
+        .object({
+          unitId: z.string().uuid().optional(),
+          create: z
+            .object({ type: z.enum(UNIT_TYPES), number: z.string().trim().min(1), project: z.string().trim().default("") })
+            .optional(),
+          x: pct(),
+          y: pct(),
+          w: pct(0.1),
+          h: pct(0.1),
+        })
+        .refine((b) => b.unitId || b.create, "Each box needs a unit"),
+    )
+    .max(2000),
+});
+
 // Blocking needs who it is held for and a contact number; releasing needs nothing.
 export const unitPatchSchema = z
   .object({
