@@ -1,4 +1,4 @@
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
@@ -12,9 +12,11 @@ import { todayISO } from "./booking-detail";
 import {
   calculateReceivable,
   CONSTRUCTION_STAGES,
+  PAYMENT_TYPES,
   type PaymentType,
 } from "./stage";
 import { stageDisbursement } from "./stage-ladder";
+import { activeProjectId, forBookings, inProject } from "./project-scope";
 
 export interface PaymentBreakdown {
   receivable: bigint;
@@ -48,11 +50,9 @@ export interface DashboardData {
 }
 
 function emptyBreakdown(): Record<PaymentType, PaymentBreakdown> {
-  return {
-    self_finance: { receivable: 0n, received: 0n, due: 0n },
-    bank_loan: { receivable: 0n, received: 0n, due: 0n },
-    installment: { receivable: 0n, received: 0n, due: 0n },
-  };
+  return Object.fromEntries(
+    (Object.keys(PAYMENT_TYPES) as PaymentType[]).map((k) => [k, { receivable: 0n, received: 0n, due: 0n }]),
+  ) as Record<PaymentType, PaymentBreakdown>;
 }
 
 export async function getDashboardData(
@@ -65,46 +65,22 @@ export async function getDashboardData(
       ? `${year + 1}-01-01`
       : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
-  const [
-    customerRows,
-    bookingRows,
-    costRows,
-    paymentRows,
-    scheduleRows,
-    pendingLoans,
-    activeLoans,
-    loanDocs,
-    loanApproval,
-    dueThisMonth,
-  ] = await Promise.all([
-    db.select({ count: sql<number>`count(*)::int` }).from(customers),
-    db.select().from(bookings),
+  // Everything is loaded for the active project only; child rows follow their booking.
+  const pid = await activeProjectId();
+  const [customerRows, bookingRows, allCosts, allPayments, allSchedule, allLoans] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(customers).where(inProject(customers.projectId, pid)),
+    db.select().from(bookings).where(inProject(bookings.projectId, pid)),
     db.select().from(propertyCosts),
     db.select().from(payments),
     db.select().from(paymentSchedule),
-    db
-      .select({ amount: loans.loanAmount })
-      .from(loans)
-      .where(inArray(loans.status, ["pending_docs", "applied", "approved"])),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(loans)
-      .where(inArray(loans.status, ["approved", "disbursed"])),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(loans)
-      .where(inArray(loans.status, ["pending_docs"])),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(loans)
-      .where(inArray(loans.status, ["applied"])),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(paymentSchedule)
-      .where(
-        sql`${paymentSchedule.dueDate} >= ${monthStart} and ${paymentSchedule.dueDate} < ${nextMonth}`,
-      ),
+    db.select({ bookingId: loans.bookingId, status: loans.status, amount: loans.loanAmount }).from(loans),
   ]);
+  const ids = new Set(bookingRows.map((b) => b.id));
+  const costRows = forBookings(allCosts, ids);
+  const paymentRows = forBookings(allPayments, ids);
+  const scheduleRows = forBookings(allSchedule, ids);
+  const loanRows = forBookings(allLoans, ids);
+  const loansIn = (...statuses: string[]) => loanRows.filter((l) => statuses.includes(l.status));
 
   const costMap = new Map(costRows.map((row) => [row.bookingId, row]));
   const paymentsByBooking = new Map<string, bigint>();
@@ -180,11 +156,8 @@ export async function getDashboardData(
     totalReceivable,
     totalReceived,
     totalOutstanding,
-    pendingLoanAmount: pendingLoans.reduce(
-      (sum, row) => sum + (row.amount ?? 0n),
-      0n,
-    ),
-    activeLoans: activeLoans[0].count,
+    pendingLoanAmount: loansIn("pending_docs", "applied", "approved").reduce((sum, row) => sum + (row.amount ?? 0n), 0n),
+    activeLoans: loansIn("approved", "disbursed").length,
     paymentBreakdown,
     stageSummary,
     stageMetrics: {
@@ -195,9 +168,9 @@ export async function getDashboardData(
     },
     alerts: {
       overduePayments,
-      dueThisMonth: dueThisMonth[0].count,
-      loanDocsPending: loanDocs[0].count,
-      loanApprovalPending: loanApproval[0].count,
+      dueThisMonth: scheduleRows.filter((r) => r.dueDate >= monthStart && r.dueDate < nextMonth).length,
+      loanDocsPending: loansIn("pending_docs").length,
+      loanApprovalPending: loansIn("applied").length,
     },
   };
 }

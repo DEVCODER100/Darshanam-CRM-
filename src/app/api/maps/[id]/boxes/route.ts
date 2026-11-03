@@ -25,12 +25,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   const map = await db.query.siteMaps.findFirst({
     where: eq(siteMaps.id, params.id),
-    columns: { id: true, name: true, projectName: true },
+    columns: { id: true, name: true, projectName: true, projectId: true },
   });
   if (!map) return jsonError("Map not found", 404);
 
   // A box that names a unit already in the database links to it instead of duplicating it.
-  const existing = await db.select({ id: units.id, p: units.projectName, t: units.unitType, n: units.unitNumber }).from(units);
+  const existing = await db
+    .select({ id: units.id, p: units.projectName, t: units.unitType, n: units.unitNumber })
+    .from(units)
+    .where(map.projectId ? eq(units.projectId, map.projectId) : undefined);
   const idByKey = new Map(existing.map((u) => [unitKey(u.p, u.t, u.n), u.id]));
   const place = new Map<string, { x: number; y: number; w: number; h: number }>();
   const fresh = new Map<string, { project: string; type: string; number: string; at: { x: number; y: number; w: number; h: number } }>();
@@ -38,7 +41,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const at = { x: b.x, y: b.y, w: b.w, h: b.h };
     if (b.unitId) place.set(b.unitId, at);
     else if (b.create) {
-      const project = b.create.project || map.projectName;
+      const project = map.projectName; // new units belong to the map's project
       const key = unitKey(project, b.create.type, b.create.number);
       const known = idByKey.get(key);
       if (known) place.set(known, at);
@@ -64,6 +67,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         .insert(units)
         .values(
           created.slice(i, i + CHUNK).map((u) => ({
+            projectId: map.projectId,
             projectName: u.project,
             unitType: u.type,
             unitNumber: u.number,

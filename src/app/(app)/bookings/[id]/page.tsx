@@ -4,6 +4,7 @@ import { loadBookingDetail, todayISO } from "@/lib/booking-detail";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
 import { formatINR, paiseToRupeeString, bpsToPercentString } from "@/lib/money";
+import { PAYMENT_TYPES } from "@/lib/stage";
 import { allocatePayments, type CoverageStatus } from "@/lib/allocation";
 import { computeGstStatus } from "@/lib/gst-calc";
 import { StagePanel } from "@/components/StagePanel";
@@ -94,11 +95,7 @@ export default async function BookingDetailPage({
         <p className="mt-1 flex items-center gap-2 text-sm text-muted">
           <span>Booked {booking.bookingDate}</span>
           <span className="pill-neutral">
-            {booking.paymentType === "bank_loan"
-              ? "Bank loan"
-              : booking.paymentType === "installment"
-                ? "Installment"
-                : "Self finance"}
+            {PAYMENT_TYPES[booking.paymentType]}
           </span>
           {booking.stageBased && (
             <span className="pill-neutral">

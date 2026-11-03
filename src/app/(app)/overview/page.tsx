@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/dashboard";
 import { formatINR } from "@/lib/money";
+import { PAYMENT_TYPES, type PaymentType } from "@/lib/stage";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,10 @@ export default async function DashboardPage() {
 
       <section>
         <h2 className="mb-3 text-lg font-medium">Payment breakdown</h2>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <BreakdownCard label="Self finance" data={d.paymentBreakdown.self_finance} />
-          <BreakdownCard label="Bank loan" data={d.paymentBreakdown.bank_loan} />
-          <BreakdownCard label="Installment" data={d.paymentBreakdown.installment} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {(Object.entries(PAYMENT_TYPES) as [PaymentType, string][]).map(([key, label]) => (
+            <BreakdownCard key={key} label={label} data={d.paymentBreakdown[key]} />
+          ))}
         </div>
       </section>
 

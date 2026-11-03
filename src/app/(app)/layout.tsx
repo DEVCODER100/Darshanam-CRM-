@@ -1,9 +1,15 @@
 import { UserButton } from "@clerk/nextjs";
 import { SidebarNav } from "@/components/SidebarNav";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
+import { getActiveProject, listProjects } from "@/lib/project-scope";
 
-export default function AppLayout({
+// Every page depends on the signed-in user and their selected project.
+export const dynamic = "force-dynamic";
+
+export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const [projects, active] = await Promise.all([listProjects(), getActiveProject()]);
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 flex-shrink-0 flex-col bg-ink py-5 md:flex">
@@ -17,7 +23,8 @@ export default function AppLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-3">
           <p className="text-sm font-medium text-ink md:hidden">Darshanam</p>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-4">
+            <ProjectSwitcher projects={projects} activeId={active?.id ?? "all"} />
             <UserButton afterSignOutUrl="/sign-in" />
           </div>
         </header>

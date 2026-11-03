@@ -15,8 +15,9 @@ import {
   users,
 } from "@/db/schema";
 import { todayISO } from "./dates";
+import { activeProjectId, inProject } from "./project-scope";
 import { displayPan, hashPan } from "./pan";
-import { calculateReceivable } from "./stage";
+import { calculateReceivable, PAYMENT_TYPES, type PaymentType } from "./stage";
 import {
   ZERO,
   bookingStatement,
@@ -54,14 +55,8 @@ export const MODE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  self_finance: "Self finance",
-  bank_loan: "Bank loan",
-  installment: "Installment",
-};
-
 export function paymentTypeLabel(paymentType: string, stageBased: boolean): string {
-  const base = TYPE_LABELS[paymentType] ?? paymentType;
+  const base = PAYMENT_TYPES[paymentType as PaymentType] ?? paymentType;
   return stageBased ? `${base} · Stage` : base;
 }
 
@@ -110,7 +105,8 @@ export async function loadAccounts(asOf: string): Promise<Map<string, AccountInf
         stageBased: bookings.stageBased,
         currentStage: bookings.currentStage,
       })
-      .from(bookings),
+      .from(bookings)
+      .where(inProject(bookings.projectId, await activeProjectId())),
     db
       .select({ bookingId: propertyCosts.bookingId, totalCost: propertyCosts.totalCost })
       .from(propertyCosts),
@@ -261,7 +257,13 @@ export async function getReceivedReport(
       .innerJoin(customers, eq(bookings.customerId, customers.id))
       .leftJoin(loans, eq(loans.bookingId, bookings.id))
       .leftJoin(users, eq(users.id, payments.createdBy))
-      .where(and(gte(payments.paymentDate, from), lte(payments.paymentDate, to)))
+      .where(
+        and(
+          gte(payments.paymentDate, from),
+          lte(payments.paymentDate, to),
+          inProject(bookings.projectId, await activeProjectId()),
+        ),
+      )
       .orderBy(desc(payments.paymentDate), desc(payments.createdAt)),
     loadAccounts(todayISO()),
   ]);
@@ -381,7 +383,7 @@ interface BookingInfo {
   phone: string;
   joint: string;
   paymentType: string; // label
-  paymentTypeKey: "self_finance" | "bank_loan" | "installment";
+  paymentTypeKey: PaymentType;
   stageBased: boolean;
   loanBank: string | null;
   loanBranch: string | null;
@@ -416,7 +418,8 @@ async function loadBookings(): Promise<BookingInfo[]> {
       })
       .from(bookings)
       .innerJoin(customers, eq(bookings.customerId, customers.id))
-      .leftJoin(loans, eq(loans.bookingId, bookings.id)),
+      .leftJoin(loans, eq(loans.bookingId, bookings.id))
+      .where(inProject(bookings.projectId, await activeProjectId())),
     db.select().from(paymentSchedule),
     db.select().from(payments),
   ]);

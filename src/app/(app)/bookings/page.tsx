@@ -4,9 +4,10 @@ import { db } from "@/db";
 import { bookings, customers } from "@/db/schema";
 import { formatINR } from "@/lib/money";
 import { ACCOUNT_STATUS_LABELS } from "@/lib/report-filters";
+import { activeProjectId, inProject } from "@/lib/project-scope";
 import { loadAccounts } from "@/lib/statement-data";
 import { todayISO } from "@/lib/dates";
-import { CONSTRUCTION_STAGES } from "@/lib/stage";
+import { CONSTRUCTION_STAGES, PAYMENT_TYPES } from "@/lib/stage";
 import type { ConstructionStage, PaymentType } from "@/lib/stage";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,6 @@ export default async function BookingsPage({
 }: {
   searchParams: {
     q?: string;
-    project?: string;
     stage?: string;
     paymentType?: string;
     due?: string;
@@ -37,8 +37,7 @@ export default async function BookingsPage({
       ),
     );
   }
-  if (searchParams.project)
-    conditions.push(ilike(bookings.projectName, `%${searchParams.project}%`));
+  conditions.push(inProject(bookings.projectId, await activeProjectId()));
   if (searchParams.stage)
     conditions.push(
       eq(bookings.currentStage, searchParams.stage as ConstructionStage),
@@ -80,7 +79,6 @@ export default async function BookingsPage({
       <h1 className="mb-4 text-2xl font-medium">Bookings</h1>
       <form className="card mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <input name="q" className="field" placeholder="Customer, mobile or unit" defaultValue={q} />
-        <input name="project" className="field" placeholder="Project" defaultValue={searchParams.project} />
         <select name="stage" className="field" defaultValue={searchParams.stage}>
           <option value="">All stages</option>
           {CONSTRUCTION_STAGES.map((stage) => (
@@ -89,9 +87,9 @@ export default async function BookingsPage({
         </select>
         <select name="paymentType" className="field" defaultValue={searchParams.paymentType}>
           <option value="">All payment types</option>
-          <option value="self_finance">Self finance</option>
-          <option value="bank_loan">Bank loan</option>
-          <option value="installment">Installment</option>
+          {Object.entries(PAYMENT_TYPES).map(([k, label]) => (
+            <option key={k} value={k}>{label}</option>
+          ))}
         </select>
         <select name="due" className="field" defaultValue={searchParams.due}>
           <option value="">All due statuses</option>

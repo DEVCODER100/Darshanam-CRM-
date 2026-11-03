@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { desc, or, ilike } from "drizzle-orm";
+import { and, desc, or, ilike } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, bookings } from "@/db/schema";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
 import { SearchBar } from "@/components/SearchBar";
+import { activeProjectId, inProject } from "@/lib/project-scope";
 
 const TYPE_ORDER = ["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"];
 
@@ -27,7 +28,7 @@ export default async function CustomersPage({
   const rows = await db
     .select()
     .from(customers)
-    .where(where)
+    .where(and(where, inProject(customers.projectId, await activeProjectId())))
     .orderBy(desc(customers.createdAt));
 
   // Distinct property types each customer owns, for the tag before their name.

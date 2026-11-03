@@ -12,6 +12,7 @@ import {
   payments,
   loans,
 } from "@/db/schema";
+import { activeProjectId, inProject } from "./project-scope";
 import { todayISO } from "./booking-detail";
 import type { ExportTable } from "./export-types";
 import {
@@ -39,6 +40,9 @@ export const REPORT_TYPES = [
   "monthly",
 ] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
+
+/** Bookings of the active project only (no condition for "All projects"). */
+const inScope = async () => inProject(bookings.projectId, await activeProjectId());
 
 function toBig(v: string | null): bigint {
   return v ? BigInt(v) : 0n;
@@ -96,7 +100,8 @@ export async function getOutstandingReport(
     })
     .from(bookings)
     .innerJoin(customers, eq(bookings.customerId, customers.id))
-    .leftJoin(propertyCosts, eq(propertyCosts.bookingId, bookings.id));
+    .leftJoin(propertyCosts, eq(propertyCosts.bookingId, bookings.id))
+    .where(await inScope());
 
   const { dueMap, paidMap } = await dueAndPaidMaps(asOf);
 
@@ -149,6 +154,7 @@ export async function getLoanReport(): Promise<LoanReportRow[]> {
     .from(loans)
     .innerJoin(bookings, eq(loans.bookingId, bookings.id))
     .innerJoin(customers, eq(bookings.customerId, customers.id))
+    .where(await inScope())
     .orderBy(asc(loans.status));
 
   return rows.map((r) => ({
@@ -176,6 +182,8 @@ export async function getMonthlyCollection(): Promise<MonthlyCollectionRow[]> {
       count: sql<number>`count(*)::int`,
     })
     .from(payments)
+    .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+    .where(await inScope())
     .groupBy(sql`to_char(${payments.paymentDate}, 'YYYY-MM')`)
     .orderBy(desc(sql`to_char(${payments.paymentDate}, 'YYYY-MM')`));
 
@@ -203,6 +211,7 @@ export async function getUnitReport() {
     .from(bookings)
     .innerJoin(customers, eq(bookings.customerId, customers.id))
     .leftJoin(propertyCosts, eq(propertyCosts.bookingId, bookings.id))
+    .where(await inScope())
     .orderBy(asc(bookings.propertyType), asc(bookings.propertyNumber));
 }
 
@@ -225,12 +234,13 @@ export async function getPaymentReport() {
     .from(payments)
     .innerJoin(bookings, eq(payments.bookingId, bookings.id))
     .innerJoin(customers, eq(bookings.customerId, customers.id))
+    .where(await inScope())
     .orderBy(desc(payments.paymentDate));
 }
 
 export async function getStageCollectionReport(asOf: string = todayISO()) {
   const [bookingRows, costRows, paymentRows, scheduleRows] = await Promise.all([
-    db.select().from(bookings),
+    db.select().from(bookings).where(await inScope()),
     db.select().from(propertyCosts),
     db.select().from(payments),
     db.select().from(paymentSchedule),
@@ -296,8 +306,8 @@ export async function getCustomerReport(
   asOf: string = todayISO(),
 ): Promise<CustomerReportEntry[]> {
   const [custRows, bookRows, payRows, costRows] = await Promise.all([
-    db.select().from(customers).orderBy(asc(customers.fullName)),
-    db.select().from(bookings),
+    db.select().from(customers).where(inProject(customers.projectId, await activeProjectId())).orderBy(asc(customers.fullName)),
+    db.select().from(bookings).where(await inScope()),
     db.select().from(payments).orderBy(desc(payments.paymentDate)),
     db.select().from(propertyCosts),
   ]);

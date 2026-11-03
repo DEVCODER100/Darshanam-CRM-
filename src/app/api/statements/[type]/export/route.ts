@@ -20,6 +20,8 @@ import {
   statementSheet,
 } from "@/lib/statement-export";
 import { buildPdf } from "@/lib/export-pdf";
+import { getActiveProject } from "@/lib/project-scope";
+import { projectSlug } from "@/lib/project-label";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,9 +66,12 @@ export async function GET(req: Request, { params }: { params: { type: string } }
     sheet = statementSheet(await getStatement(month as string));
   }
 
-  // Same naming as the reference files: Payment-Received-Report-02-Nov-2026.xlsx
+  // Same naming as the reference files, plus the project: Payment-Received-Report-Splendora-3-…-02-Nov-2026.xlsx
+  const project = await getActiveProject();
+  const label = project?.label ?? "All projects";
+  sheet = { ...sheet, title: `${sheet.title} — ${label}` };
   const stamp = formatReportDate(todayISO()).replace(",", "").replace(/ /g, "-");
-  const filename = `${name}-${stamp}`;
+  const filename = `${name}-${projectSlug(label)}-${stamp}`;
 
   try {
     if (format === "csv") {

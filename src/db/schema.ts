@@ -43,6 +43,7 @@ export const paymentTypeEnum = pgEnum("payment_type", [
   "self_finance",
   "bank_loan",
   "installment",
+  "custom",
 ]);
 
 export const unitStatusEnum = pgEnum("unit_status", [
@@ -104,6 +105,7 @@ export const auditEntityEnum = pgEnum("audit_entity", [
   "document",
   "user",
   "unit",
+  "project",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,20 @@ export interface JointApplicant {
   panEncrypted: string;
 }
 
+// A project is one construction area (e.g. "Splendora 3" / "Construction Area 2").
+// Units, clients, bookings and maps belong to one; payments etc. follow their booking.
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    area: text("area").notNull().default(""),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ uniqueName: uniqueIndex("projects_name_area_idx").on(t.name, t.area) }),
+);
+
 export const customers = pgTable(
   "customers",
   {
@@ -151,6 +167,7 @@ export const customers = pgTable(
     panHash: text("pan_hash"),
     panExemptReason: text("pan_exempt_reason"),
     clientCode: text("client_code"),
+    projectId: uuid("project_id").references(() => projects.id),
     // Aadhaar / passport number, encrypted like the PAN (masked copy is aadhaarMasked).
     idProofEncrypted: text("id_proof_encrypted"),
     // Everything else on the Register Client form (title, DOB, city, company...);
@@ -167,6 +184,7 @@ export const customers = pgTable(
   },
   (t) => ({
     nameIdx: index("customers_name_idx").on(t.fullName),
+    projectIdx: index("customers_project_idx").on(t.projectId),
     panHashIdx: index("customers_pan_hash_idx").on(t.panHash),
     clientCodeIdx: uniqueIndex("customers_client_code_idx").on(t.clientCode),
   }),
@@ -186,7 +204,8 @@ export interface MapLabel {
 export const siteMaps = pgTable("site_maps", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
-  projectName: text("project_name").notNull().default(""),
+  projectName: text("project_name").notNull().default(""), // legacy text; projectId is the source of truth
+  projectId: uuid("project_id").references(() => projects.id),
   fileUrl: text("file_url").notNull(), // /api/maps/<id>/image
   // The JPEG itself, base64. Kept in the database so maps work everywhere (local and live)
   // without separate file storage. Never select it in list queries.
@@ -206,7 +225,8 @@ export const units = pgTable(
   "units",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    projectName: text("project_name").notNull().default(""),
+    projectName: text("project_name").notNull().default(""), // legacy text; projectId is the source of truth
+    projectId: uuid("project_id").references(() => projects.id),
     unitType: text("unit_type").notNull(),
     unitNumber: text("unit_number").notNull(),
     areaSqft: numeric("area_sqft", { precision: 10, scale: 2 }),
@@ -232,6 +252,7 @@ export const units = pgTable(
       .defaultNow(),
   },
   (t) => ({
+    uniqueInProject: uniqueIndex("units_project_unique_idx").on(t.projectId, t.unitType, t.unitNumber),
     uniqueUnit: uniqueIndex("units_unique_idx").on(
       t.projectName,
       t.unitType,
@@ -250,7 +271,8 @@ export const bookings = pgTable(
     unitId: uuid("unit_id").references(() => units.id, { onDelete: "set null" }),
     bookingCode: text("booking_code"),
     bookingDate: date("booking_date").notNull(),
-    projectName: text("project_name"),
+    projectName: text("project_name"), // legacy text; projectId is the source of truth
+    projectId: uuid("project_id").references(() => projects.id),
     propertyType: text("property_type").notNull(),
     propertyNumber: text("property_number"),
     bookingAddress: text("booking_address"),
@@ -271,6 +293,7 @@ export const bookings = pgTable(
   },
   (t) => ({
     customerIdx: index("bookings_customer_idx").on(t.customerId),
+    projectIdx: index("bookings_project_idx").on(t.projectId),
     bookingCodeIdx: uniqueIndex("bookings_booking_code_idx").on(t.bookingCode),
   }),
 );

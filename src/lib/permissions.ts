@@ -14,7 +14,8 @@ export type AuditEntity =
   | "loan"
   | "document"
   | "user"
-  | "unit";
+  | "unit"
+  | "project";
 
 export type Capability =
   | "customer:create"
@@ -33,6 +34,7 @@ export type Capability =
   | "document:delete"
   | "user:manage"
   | "unit:manage"
+  | "project:manage"
   | "report:view"
   | "audit:view"
   | "sensitive:view"; // unmask Aadhaar/PAN
@@ -54,6 +56,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "document:delete",
   "user:manage",
   "unit:manage",
+  "project:manage",
   "report:view",
   "audit:view",
   "sensitive:view",

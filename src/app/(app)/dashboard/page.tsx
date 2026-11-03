@@ -6,6 +6,7 @@ import { asc, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { siteMaps, users } from "@/db/schema";
 import { BOX, STATUSES } from "@/lib/unit-style";
+import { activeProjectId, inProject } from "@/lib/project-scope";
 import { MapBoard } from "@/components/MapBoard";
 import { MapUpload } from "@/components/MapUpload";
 import { UnitAdd } from "@/components/UnitAdd";
@@ -59,11 +60,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
     list.push(u);
     groups.set(u.projectName, list);
   }
-  const showHeadings = board.projects.length > 0;
+  const showHeadings = board.projects.length > 1; // only in the "All projects" view
 
   const maps = await db
     .select({ id: siteMaps.id, name: siteMaps.name, fileUrl: siteMaps.fileUrl, width: siteMaps.width, height: siteMaps.height, detected: siteMaps.detected })
     .from(siteMaps)
+    .where(inProject(siteMaps.projectId, await activeProjectId()))
     .orderBy(asc(siteMaps.createdAt));
   const activeMap = maps.find((m) => m.id === searchParams.map) ?? maps[0];
   const showMap = !!activeMap && searchParams.view !== "grid";

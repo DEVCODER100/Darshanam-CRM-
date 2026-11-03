@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, propertyCosts, auditLog, units } from "@/db/schema";
+import { bookings, customers, propertyCosts, auditLog, units } from "@/db/schema";
 import { requireAuth, requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError } from "@/lib/api";
@@ -10,14 +10,16 @@ import { computeCost } from "@/lib/cost";
 import { rupeesToPaise, percentToBps } from "@/lib/money";
 import { nextCode } from "@/lib/codes";
 import { CLEAR_BLOCK } from "@/lib/unit-block";
+import { activeProjectId, inProject, needProject } from "@/lib/project-scope";
 
-// GET /api/bookings — list (any authenticated staff).
+// GET /api/bookings — list (any authenticated staff), for the selected project.
 export async function GET() {
   const gate = await requireAuth();
   if (!gate.ok) return gate.response;
   const rows = await db
     .select()
     .from(bookings)
+    .where(inProject(bookings.projectId, await activeProjectId()))
     .orderBy(desc(bookings.createdAt));
   return NextResponse.json({ bookings: rows });
 }
@@ -40,7 +42,8 @@ export async function POST(req: Request) {
     : undefined;
   if (input.unitId && !unit) return jsonError("Unit not found", 404);
   if (!unit) {
-    const project = input.projectName || "";
+    const scope = await needProject();
+    if (!scope.ok) return scope.response;
     const number = input.propertyNumber || `(${bookingId.slice(0, 6)})`;
     unit = (
       await db
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
         .from(units)
         .where(
           and(
-            eq(units.projectName, project),
+            eq(units.projectId, scope.project.id),
             eq(units.unitType, input.propertyType),
             eq(units.unitNumber, number),
           ),
@@ -57,9 +60,18 @@ export async function POST(req: Request) {
     if (!unit) {
       [unit] = await db
         .insert(units)
-        .values({ projectName: project, unitType: input.propertyType, unitNumber: number })
+        .values({ projectId: scope.project.id, projectName: scope.project.label, unitType: input.propertyType, unitNumber: number })
         .returning();
     }
+  }
+  // Clients are per project: the client must belong to the unit's project.
+  const client = await db.query.customers.findFirst({
+    where: eq(customers.id, input.customerId),
+    columns: { projectId: true },
+  });
+  if (!client) return jsonError("Customer not found", 404);
+  if (unit.projectId && client.projectId !== unit.projectId) {
+    return jsonError("This client belongs to a different project than the unit.", 409);
   }
   const taken = await db.query.bookings.findFirst({
     where: eq(bookings.unitId, unit.id),
@@ -85,6 +97,7 @@ export async function POST(req: Request) {
       (await db.select({ c: bookings.bookingCode }).from(bookings)).map((r) => r.c),
     ),
     bookingDate: input.bookingDate,
+    projectId: unit.projectId,
     projectName: unit.projectName || null,
     propertyType: unit.unitType,
     propertyNumber: unit.unitNumber.startsWith("(") ? null : unit.unitNumber,

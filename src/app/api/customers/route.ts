@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, ilike, or } from "drizzle-orm";
+import { and, desc, ilike, or } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -11,6 +11,7 @@ import { auditEntry } from "@/lib/audit";
 import { parseBody, genId, jsonError } from "@/lib/api";
 import { customerCreateSchema } from "@/lib/validators";
 import { extraColumns } from "@/lib/customer-write";
+import { activeProjectId, inProject, needProject } from "@/lib/project-scope";
 
 // GET /api/customers — list (any authenticated staff).
 // With ?q= it is a quick search (name, mobile, email, client ID) for pickers.
@@ -24,7 +25,12 @@ export async function GET(req: Request) {
     const found = await db
       .select({ id: customers.id, fullName: customers.fullName, mobile: customers.mobile, clientCode: customers.clientCode })
       .from(customers)
-      .where(or(ilike(customers.fullName, like), ilike(customers.mobile, like), ilike(customers.email, like), ilike(customers.clientCode, like)))
+      .where(
+        and(
+          or(ilike(customers.fullName, like), ilike(customers.mobile, like), ilike(customers.email, like), ilike(customers.clientCode, like)),
+          inProject(customers.projectId, await activeProjectId()),
+        ),
+      )
       .limit(8);
     return NextResponse.json({ customers: found });
   }
@@ -32,6 +38,7 @@ export async function GET(req: Request) {
   const rows = await db
     .select()
     .from(customers)
+    .where(inProject(customers.projectId, await activeProjectId()))
     .orderBy(desc(customers.createdAt));
   return NextResponse.json({ customers: rows.map(publicCustomer) });
 }
@@ -40,6 +47,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const gate = await requireCapability("customer:create");
   if (!gate.ok) return gate.response;
+
+  const scope = await needProject();
+  if (!scope.ok) return scope.response;
 
   const parsed = await parseBody(req, customerCreateSchema);
   if (!parsed.ok) return parsed.response;
@@ -57,7 +67,8 @@ export async function POST(req: Request) {
       return jsonError("PAN storage is not configured on the server (PAN_ENCRYPTION_KEY).", 500);
     }
     const dup = await db.query.customers.findFirst({
-      where: eq(customers.panHash, panCols.panHash),
+      // Clients are kept per project, so the same PAN may exist in another project.
+      where: and(eq(customers.panHash, panCols.panHash), eq(customers.projectId, scope.project.id)),
       columns: { fullName: true },
     });
     if (dup) return jsonError(`This PAN is already on file for ${dup.fullName}.`, 409);
@@ -67,6 +78,7 @@ export async function POST(req: Request) {
   const row = {
     id,
     clientCode: nextCode("CL", existingCodes),
+    projectId: scope.project.id,
     ...(panCols ?? {}),
     panExemptReason: panCols ? null : input.noPanReason || null,
     fullName: input.fullName,

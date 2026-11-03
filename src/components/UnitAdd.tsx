@@ -10,7 +10,6 @@ export function UnitAdd() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [unitType, setUnitType] = useState<(typeof TYPES)[number]>("Bungalow");
-  const [projectName, setProjectName] = useState("");
   const [count, setCount] = useState("20");
   const [start, setStart] = useState("1");
   const [busy, setBusy] = useState(false);
@@ -25,7 +24,6 @@ export function UnitAdd() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         unitType,
-        projectName,
         count: Number(count),
         start: Number(start),
       }),
@@ -59,10 +57,6 @@ export function UnitAdd() {
         <select className="field mt-1" value={unitType} onChange={(e) => setUnitType(e.target.value as typeof unitType)}>
           {TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
-      </label>
-      <label className="text-xs text-muted">
-        Project (optional)
-        <input className="field mt-1" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
       </label>
       <label className="w-24 text-xs text-muted">
         How many

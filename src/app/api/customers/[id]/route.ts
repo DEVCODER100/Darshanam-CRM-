@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { customers, auditLog } from "@/db/schema";
 import { panColumns } from "@/lib/pan";
@@ -51,7 +51,10 @@ export async function PATCH(req: Request, { params }: Params) {
     try {
       const cols = panColumns(input.panNumber);
       const dup = await db.query.customers.findFirst({
-        where: eq(customers.panHash, cols.panHash),
+        where: and(
+          eq(customers.panHash, cols.panHash),
+          before.projectId ? eq(customers.projectId, before.projectId) : undefined,
+        ),
         columns: { id: true, fullName: true },
       });
       if (dup && dup.id !== params.id)

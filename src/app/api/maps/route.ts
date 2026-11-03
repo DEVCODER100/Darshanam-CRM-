@@ -5,6 +5,7 @@ import { requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { genId, jsonError } from "@/lib/api";
 import { mapLabelsSchema } from "@/lib/validators";
+import { needProject } from "@/lib/project-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ const MAX_BYTES = 4_400_000; // Vercel rejects larger request bodies
 export async function POST(req: Request) {
   const gate = await requireCapability("unit:manage");
   if (!gate.ok) return gate.response;
+
+  const scope = await needProject();
+  if (!scope.ok) return scope.response;
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
@@ -38,7 +42,8 @@ export async function POST(req: Request) {
     const row = {
       id,
       name,
-      projectName: String(form?.get("projectName") ?? "").trim(),
+      projectId: scope.project.id,
+      projectName: scope.project.label,
       fileUrl: `/api/maps/${id}/image`,
       imageData: Buffer.from(await file.arrayBuffer()).toString("base64"),
       width,

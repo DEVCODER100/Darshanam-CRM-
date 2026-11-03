@@ -18,7 +18,6 @@ import { UNIT_TYPES } from "@/lib/validators";
 const FIELDS: [Field, string][] = [
   ["number", "Unit number / name *"],
   ["type", "Type"],
-  ["project", "Project / block"],
   ["area", "Area"],
   ["floor", "Floor"],
 ];
@@ -31,7 +30,6 @@ export function UnitImport() {
   const [fileName, setFileName] = useState("");
   const [mapping, setMapping] = useState<Mapping>({});
   const [defaultType, setDefaultType] = useState<UnitType | "">("");
-  const [defaultProject, setDefaultProject] = useState("");
   const [areaUnit, setAreaUnit] = useState<AreaUnit>("sqft");
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,9 +40,9 @@ export function UnitImport() {
   const built = useMemo(
     () =>
       grid
-        ? buildRows(grid.slice(headerAt + 1), mapping, { defaultType: defaultType || undefined, defaultProject, areaUnit }, headerAt + 2)
+        ? buildRows(grid.slice(headerAt + 1), mapping, { defaultType: defaultType || undefined, areaUnit }, headerAt + 2)
         : null,
-    [grid, headerAt, mapping, defaultType, defaultProject, areaUnit],
+    [grid, headerAt, mapping, defaultType, areaUnit],
   );
 
   const post = (dryRun: boolean) =>
@@ -121,7 +119,7 @@ export function UnitImport() {
       </div>
       <p className="text-muted">
         Upload your unit list as .xlsx, .csv or a text PDF (save older .xls files as .xlsx). Check the columns, review the preview, then confirm.
-        Existing units are never duplicated or deleted.
+        Units go into the project selected at the top. Existing units are never duplicated or deleted.
       </p>
       <input
         type="file"
@@ -163,10 +161,6 @@ export function UnitImport() {
                 <option value="">—</option>
                 {UNIT_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
-            </label>
-            <label className="block text-xs text-muted">
-              Project when blank
-              <input className="field mt-1" value={defaultProject} onChange={(e) => setDefaultProject(e.target.value)} />
             </label>
           </div>
 

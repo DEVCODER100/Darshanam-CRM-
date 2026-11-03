@@ -2,6 +2,8 @@ import { requireCapability } from "@/lib/rbac";
 import { jsonError } from "@/lib/api";
 import { getReportTable, REPORT_TYPES, type ReportType } from "@/lib/reports";
 import { buildXlsx } from "@/lib/export-xlsx";
+import { getActiveProject } from "@/lib/project-scope";
+import { projectSlug } from "@/lib/project-label";
 import { buildPdf } from "@/lib/export-pdf";
 
 export const runtime = "nodejs";
@@ -19,7 +21,10 @@ export async function GET(req: Request, { params }: Params) {
   const type = params.type as ReportType;
   const format = new URL(req.url).searchParams.get("format") ?? "xlsx";
 
-  const table = await getReportTable(type);
+  const label = (await getActiveProject())?.label ?? "All projects";
+  const base = await getReportTable(type);
+  const table = { ...base, title: `${base.title} — ${label}` };
+  const file = `${type}-report-${projectSlug(label)}`;
 
   try {
     if (format === "pdf") {
@@ -27,7 +32,7 @@ export async function GET(req: Request, { params }: Params) {
       return new Response(new Uint8Array(buf), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${type}-report.pdf"`,
+          "Content-Disposition": `attachment; filename="${file}.pdf"`,
         },
       });
     }
@@ -36,7 +41,7 @@ export async function GET(req: Request, { params }: Params) {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${type}-report.xlsx"`,
+        "Content-Disposition": `attachment; filename="${file}.xlsx"`,
       },
     });
   } catch (err) {

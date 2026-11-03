@@ -5,6 +5,7 @@ import { requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
 import { parseBody } from "@/lib/api";
 import { unitCreateSchema } from "@/lib/validators";
+import { needProject } from "@/lib/project-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const gate = await requireCapability("unit:manage");
   if (!gate.ok) return gate.response;
+
+  const scope = await needProject();
+  if (!scope.ok) return scope.response;
 
   const parsed = await parseBody(req, unitCreateSchema);
   if (!parsed.ok) return parsed.response;
@@ -26,7 +30,8 @@ export async function POST(req: Request) {
     .insert(units)
     .values(
       numbers.map((unitNumber) => ({
-        projectName: input.projectName,
+        projectId: scope.project.id,
+        projectName: scope.project.label,
         unitType: input.unitType,
         unitNumber,
       })),
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
       entityType: "unit",
       entityId: created[0]?.id ?? null,
       after: {
-        projectName: input.projectName,
+        project: scope.project.label,
         unitType: input.unitType,
         requested: numbers.length,
         created: created.length,

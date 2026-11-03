@@ -40,8 +40,6 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const update: Partial<typeof bookings.$inferInsert> = {};
   if (input.bookingDate !== undefined) update.bookingDate = input.bookingDate;
-  if (input.projectName !== undefined)
-    update.projectName = input.projectName || null;
   if (input.propertyType !== undefined) update.propertyType = input.propertyType;
   if (input.propertyNumber !== undefined)
     update.propertyNumber = input.propertyNumber || null;
@@ -72,19 +70,17 @@ export async function PATCH(req: Request, { params }: Params) {
   // Renaming the unit on the booking renames it on the board too.
   if (
     before.unitId &&
-    (update.projectName !== undefined ||
-      update.propertyType !== undefined ||
+    (update.propertyType !== undefined ||
       update.propertyNumber !== undefined)
   ) {
     const unitUpdate: Partial<typeof units.$inferInsert> = {};
-    if (update.projectName !== undefined) unitUpdate.projectName = update.projectName ?? "";
     if (update.propertyType !== undefined) unitUpdate.unitType = update.propertyType;
     if (update.propertyNumber !== undefined)
       unitUpdate.unitNumber = update.propertyNumber ?? `(${params.id.slice(0, 6)})`;
     try {
       await db.update(units).set(unitUpdate).where(eq(units.id, before.unitId));
     } catch {
-      return jsonError("Another unit already uses that project, type and number", 409);
+      return jsonError("Another unit in this project already uses that type and number", 409);
     }
   }
 

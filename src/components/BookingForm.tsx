@@ -14,7 +14,7 @@ interface Values {
   propertyNumber: string;
   bookingAddress: string;
   unitStatus: "available" | "booked" | "sold";
-  paymentType: "self_finance" | "bank_loan" | "installment";
+  paymentType: "self_finance" | "bank_loan" | "installment" | "custom";
   stageBased: boolean;
   currentStage: string;
   downPayment: string;
@@ -216,9 +216,6 @@ export function BookingForm({
         <Field label="Booking date" required>
           <input type="date" className="field" value={v.bookingDate} onChange={set("bookingDate")} required />
         </Field>
-        <Field label="Project name">
-          <input className="field" value={v.projectName} onChange={set("projectName")} disabled={!!unit} />
-        </Field>
         <Field label="Unit type" required>
           <select className="field" value={v.propertyType} onChange={set("propertyType")} disabled={!!unit}>
             {["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"].map((type) => (
@@ -247,6 +244,7 @@ export function BookingForm({
             <option value="self_finance">Self finance</option>
             <option value="bank_loan">Bank loan</option>
             <option value="installment">Installment based</option>
+            <option value="custom">Custom (lump sum + stage-wise)</option>
           </select>
         </Field>
         <label className="flex items-center gap-2 rounded-md border border-hairline p-3 text-sm">

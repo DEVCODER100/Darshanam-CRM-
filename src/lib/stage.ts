@@ -9,7 +9,15 @@ export const CONSTRUCTION_STAGES = [
 ] as const;
 
 export type ConstructionStage = (typeof CONSTRUCTION_STAGES)[number]["value"];
-export type PaymentType = "self_finance" | "bank_loan" | "installment";
+export type PaymentType = "self_finance" | "bank_loan" | "installment" | "custom";
+
+/** Display names for every payment type, in the order the UI lists them. */
+export const PAYMENT_TYPES: Record<PaymentType, string> = {
+  self_finance: "Self finance",
+  bank_loan: "Bank loan",
+  installment: "Installment",
+  custom: "Custom",
+};
 
 export function stagePercentBps(stage: ConstructionStage | null): number {
   if (!stage) return 0;
@@ -39,7 +47,8 @@ export function calculateReceivable(input: ReceivableInput): bigint {
     stagePercentBps(input.currentStage),
   );
 
-  if (input.paymentType === "installment") {
+  // Installment and custom plans are driven by their schedule (lump sums and/or stage instalments).
+  if (input.paymentType === "installment" || input.paymentType === "custom") {
     const scheduled = input.scheduleDueTillDate ?? 0n;
     return input.stageBased
       ? scheduled < stageEligible

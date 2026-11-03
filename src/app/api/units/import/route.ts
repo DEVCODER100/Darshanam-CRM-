@@ -7,6 +7,7 @@ import { auditEntry } from "@/lib/audit";
 import { parseBody, jsonError } from "@/lib/api";
 import { unitImportSchema } from "@/lib/validators";
 import { planImport } from "@/lib/unit-import";
+import { needProject } from "@/lib/project-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +20,22 @@ export async function POST(req: Request) {
   const gate = await requireCapability("unit:manage");
   if (!gate.ok) return gate.response;
 
+  const scope = await needProject();
+  if (!scope.ok) return scope.response;
+
   const parsed = await parseBody(req, unitImportSchema);
   if (!parsed.ok) return parsed.response;
-  const { rows, dryRun } = parsed.data;
+  const { dryRun } = parsed.data;
+  // Everything goes into the selected project.
+  const label = scope.project.label;
+  const rows = parsed.data.rows.map((r) => ({ ...r, project: label }));
 
-  const existing = await db.select().from(units);
+  const existing = await db.select().from(units).where(eq(units.projectId, scope.project.id));
   const plan = planImport(
     rows,
     existing.map((u) => ({
       id: u.id,
-      project: u.projectName,
+      project: label,
       type: u.unitType,
       number: u.unitNumber,
       area: u.areaSqft,
@@ -44,7 +51,8 @@ export async function POST(req: Request) {
         .insert(units)
         .values(
           plan.create.slice(i, i + CHUNK).map((r) => ({
-            projectName: r.project,
+            projectId: scope.project.id,
+            projectName: label,
             unitType: r.type,
             unitNumber: r.number,
             areaSqft: r.area,
@@ -71,7 +79,7 @@ export async function POST(req: Request) {
         action: "create",
         entityType: "unit",
         entityId: null,
-        after: { import: summary },
+        after: { import: summary, project: label },
       }),
     );
   } catch (err) {

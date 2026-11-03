@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { UnitPanelData } from "@/lib/unit-board";
 import { formatINR } from "@/lib/money";
 import { stageDisbursement } from "@/lib/stage-ladder";
-import { stageLabel } from "@/lib/stage";
+import { PAYMENT_TYPES, stageLabel } from "@/lib/stage";
 import { PaymentEntry } from "@/components/PaymentEntry";
 import { StageUpdateButton } from "@/components/StageUpdateButton";
 import { UnitBlock, type StaffChoice } from "@/components/UnitBlock";
@@ -15,12 +15,6 @@ export interface PanelAccess {
   staff: StaffChoice[];
   currentUserId: string;
 }
-
-const PAYMENT_TYPE: Record<string, string> = {
-  self_finance: "Self finance",
-  bank_loan: "Bank loan",
-  installment: "Installment",
-};
 
 /** Everything about one unit: owner, money, charges, stage and payment record. */
 export function UnitPanel({
@@ -108,7 +102,7 @@ export function UnitPanel({
 
           <section className="grid grid-cols-2 gap-3 text-sm">
             <Info label="Booked on" value={booking.bookingDate} />
-            <Info label="Payment type" value={PAYMENT_TYPE[booking.paymentType] ?? booking.paymentType} />
+            <Info label="Payment type" value={PAYMENT_TYPES[booking.paymentType] ?? booking.paymentType} />
             <Info label="Agreement value" value={formatINR(cost.agreementValue, { paise2dp: false })} money />
             <Info label="Total cost" value={formatINR(cost.totalCost, { paise2dp: false })} money />
           </section>

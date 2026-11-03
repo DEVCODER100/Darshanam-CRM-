@@ -87,7 +87,7 @@ export const bookingCreateSchema = z.object({
   bookingAddress: z.string().trim().optional().or(z.literal("")),
   unitStatus: z.enum(["available", "booked", "sold"]).default("booked"),
   paymentType: z
-    .enum(["self_finance", "bank_loan", "installment"])
+    .enum(["self_finance", "bank_loan", "installment", "custom"])
     .default("self_finance"),
   stageBased: z.boolean().default(false),
   currentStage: stage.nullable().optional(),
@@ -218,6 +218,12 @@ export const unitCreateSchema = z
   .refine((v) => v.unitNumber || v.count, {
     message: "Give a unit number, or a count to create several",
   });
+
+export const projectSchema = z.object({
+  name: z.string().trim().min(1, "Give the project a name").max(80),
+  area: z.string().trim().max(80).default(""),
+});
+export const projectPatchSchema = projectSchema.partial().extend({ archived: z.boolean().optional() });
 
 export const unitImportSchema = z.object({
   rows: z

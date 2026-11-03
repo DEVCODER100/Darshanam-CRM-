@@ -80,7 +80,6 @@ export function MapUpload() {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
-  const [project, setProject] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +94,6 @@ export function MapUpload() {
       const form = new FormData();
       form.append("file", new File([await shrink(canvas)], "map.jpg", { type: "image/jpeg" }));
       form.append("name", name || file.name.replace(/\.[^.]+$/, ""));
-      form.append("projectName", project);
       form.append("width", String(canvas.width));
       form.append("height", String(canvas.height));
       form.append("detected", JSON.stringify(detected));
@@ -129,16 +127,11 @@ export function MapUpload() {
         otherwise you place boxes by hand or with the auto-grid.
       </p>
       <input type="file" accept=".pdf,.png,.jpg,.jpeg" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block" />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-muted">
-          Map name
-          <input className="field mt-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Phase 1 layout" />
-        </label>
-        <label className="block text-xs text-muted">
-          Project (optional)
-          <input className="field mt-1" value={project} onChange={(e) => setProject(e.target.value)} />
-        </label>
-      </div>
+      <label className="block max-w-sm text-xs text-muted">
+        Map name
+        <input className="field mt-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Phase 1 layout" />
+      </label>
+      <p className="text-xs text-muted">The map goes into the project selected at the top.</p>
       <button disabled={!file || !!status} className="btn-primary">{status ?? "Upload"}</button>
       {error && <p className="text-danger">{error}</p>}
     </form>

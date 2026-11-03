@@ -6,6 +6,7 @@
 import { rupeesToPaise } from "./money";
 import { isMonth, monthRange } from "./statement";
 import { todayISO } from "./dates";
+import { PAYMENT_TYPES, type PaymentType } from "./stage";
 import { isValidPan, normalizePan } from "./pan-format";
 
 export type Params = Record<string, string | string[] | undefined>;
@@ -85,11 +86,9 @@ export function resolvePeriod(sp: Params, today: string = todayISO()): Period {
 
 // --- filters ----------------------------------------------------------------
 
-export type PaymentTypeKey = "self_finance" | "bank_loan" | "installment" | "stage";
+export type PaymentTypeKey = PaymentType | "stage";
 export const PAYMENT_TYPE_LABELS: Record<PaymentTypeKey, string> = {
-  self_finance: "Self finance",
-  bank_loan: "Bank loan",
-  installment: "Installment",
+  ...PAYMENT_TYPES,
   stage: "Stage-based",
 };
 
@@ -138,7 +137,7 @@ function pick<T extends string>(v: string | string[] | undefined, allowed: reado
 function parseCommon(sp: Params): CommonFilters {
   return {
     q: one(sp.q),
-    paymentType: pick(sp.ptype, ["self_finance", "bank_loan", "installment", "stage"] as const),
+    paymentType: pick(sp.ptype, [...(Object.keys(PAYMENT_TYPES) as PaymentType[]), "stage"] as const),
     status: pick(sp.status, ["paid_in_full", "dues_pending", "up_to_date", "nothing_paid"] as const),
     panMissing: one(sp.pan) === "missing" ? true : undefined,
     project: one(sp.project),
@@ -210,7 +209,7 @@ export interface RowBase {
   bookingCode: string | null;
   project: string;
   unitType: string;
-  paymentTypeKey: "self_finance" | "bank_loan" | "installment";
+  paymentTypeKey: PaymentType;
   stageBased: boolean;
   panHash: string | null;
   hasPan: boolean;

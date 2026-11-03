@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { bookings, customers, units } from "@/db/schema";
 import { BookingForm } from "@/components/BookingForm";
 import { blockActive } from "@/lib/unit-block";
+import { activeProjectId, inProject } from "@/lib/project-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,14 @@ export default async function NewBookingPage({
 
   const customerList = customer
     ? undefined
-    : (await db.select().from(customers).orderBy(asc(customers.fullName))).map((c) => ({
+    : (
+        await db
+          .select()
+          .from(customers)
+          // Clients are per project: offer only those of the unit's (or the selected) project.
+          .where(unit?.projectId ? eq(customers.projectId, unit.projectId) : inProject(customers.projectId, await activeProjectId()))
+          .orderBy(asc(customers.fullName))
+      ).map((c) => ({
         id: c.id,
         name: `${c.fullName} · ${c.mobile}`,
       }));

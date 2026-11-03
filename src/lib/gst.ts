@@ -9,6 +9,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, propertyCosts, payments } from "@/db/schema";
+import { activeProjectId, inProject } from "./project-scope";
 import { computeGstStatus } from "./gst-calc";
 
 export { computeGstStatus } from "./gst-calc";
@@ -46,7 +47,8 @@ export async function getGstTracker(): Promise<GstTracker> {
         customerName: customers.fullName,
       })
       .from(bookings)
-      .innerJoin(customers, eq(bookings.customerId, customers.id)),
+      .innerJoin(customers, eq(bookings.customerId, customers.id))
+      .where(inProject(bookings.projectId, await activeProjectId())),
     db.select().from(propertyCosts),
     db
       .select({

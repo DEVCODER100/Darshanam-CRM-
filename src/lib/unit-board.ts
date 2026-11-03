@@ -8,6 +8,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, customers, units, users } from "@/db/schema";
 import { blockActive } from "./unit-block";
+import { activeProjectId, inProject } from "./project-scope";
 import { computeGstStatus } from "./gst-calc";
 import { loadBookingDetail, todayISO, type BookingDetail } from "./booking-detail";
 import {
@@ -82,7 +83,8 @@ export async function getBoard(): Promise<BoardData> {
     .from(units)
     .leftJoin(bookings, eq(bookings.unitId, units.id))
     .leftJoin(customers, eq(customers.id, bookings.customerId))
-    .leftJoin(blocker, eq(blocker.id, units.blockedBy));
+    .leftJoin(blocker, eq(blocker.id, units.blockedBy))
+    .where(inProject(units.projectId, await activeProjectId()));
 
   const list: BoardUnit[] = rows
     .map((r) => {

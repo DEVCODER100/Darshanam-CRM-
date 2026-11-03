@@ -7,6 +7,7 @@ import { and, gte, lt, eq, inArray, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, paymentSchedule, loans } from "@/db/schema";
 import { todayISO } from "./booking-detail";
+import { activeProjectId, inProject } from "./project-scope";
 
 function bookingLabel(type: string, num: string | null) {
   return `${type}${num ? " " + num : ""}`;
@@ -48,6 +49,7 @@ export async function getDueThisMonthList(asOf: string = todayISO()): Promise<Du
       and(
         gte(paymentSchedule.dueDate, monthStart),
         lt(paymentSchedule.dueDate, nextMonth),
+        inProject(bookings.projectId, await activeProjectId()),
       ),
     )
     .orderBy(asc(paymentSchedule.dueDate));
@@ -87,7 +89,7 @@ export async function getLoanStatusList(
     .from(loans)
     .innerJoin(bookings, eq(loans.bookingId, bookings.id))
     .innerJoin(customers, eq(bookings.customerId, customers.id))
-    .where(inArray(loans.status, statuses));
+    .where(and(inArray(loans.status, statuses), inProject(bookings.projectId, await activeProjectId())));
 
   return rows.map((r) => ({
     bookingId: r.bookingId,

@@ -2,9 +2,10 @@
  * stage-tracking.ts — stage-wise bank disbursement data (DB).
  * Lists ONLY stage-payment bookings and rolls up the dashboard metrics.
  */
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, propertyCosts, payments } from "@/db/schema";
+import { activeProjectId, inProject } from "./project-scope";
 import { stageDisbursement } from "./stage-ladder";
 import { stageLabel } from "./stage";
 import type { ConstructionStage } from "./stage";
@@ -48,7 +49,7 @@ async function loadStageRows() {
       })
       .from(bookings)
       .innerJoin(customers, eq(bookings.customerId, customers.id))
-      .where(eq(bookings.stageBased, true)),
+      .where(and(eq(bookings.stageBased, true), inProject(bookings.projectId, await activeProjectId()))),
     db.select().from(propertyCosts),
     db
       .select({

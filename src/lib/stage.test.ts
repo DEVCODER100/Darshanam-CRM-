@@ -40,6 +40,12 @@ describe("stage receivable", () => {
     ).toBe(8_250_000_00n);
   });
 
+  it("custom plans follow the schedule, like installments", () => {
+    const base = { totalCost: 15_000_000_00n, currentStage: null, scheduleDueTillDate: 4_000_000_00n };
+    expect(calculateReceivable({ ...base, paymentType: "custom", stageBased: false })).toBe(4_000_000_00n);
+    expect(calculateReceivable({ ...base, paymentType: "custom", stageBased: true, currentStage: "plinth" })).toBe(4_000_000_00n);
+  });
+
   it("detects collection beyond the eligible amount", () => {
     const result = checkCollectionLimit(
       8_250_000_00n,

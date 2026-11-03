@@ -7,6 +7,7 @@
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, paymentSchedule } from "@/db/schema";
+import { activeProjectId, inProject } from "./project-scope";
 import { todayISO } from "./booking-detail";
 
 export interface CashflowItem {
@@ -45,6 +46,7 @@ export async function getCashflow(asOf: string = todayISO()): Promise<CashflowDa
     .from(paymentSchedule)
     .innerJoin(bookings, eq(paymentSchedule.bookingId, bookings.id))
     .innerJoin(customers, eq(bookings.customerId, customers.id))
+    .where(inProject(bookings.projectId, await activeProjectId()))
     .orderBy(asc(paymentSchedule.dueDate));
 
   const byMonth = new Map<string, MonthGroup>();
