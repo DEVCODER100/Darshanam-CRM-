@@ -8,6 +8,7 @@ import {
   paiseToRupeeString,
   applyBasisPoints,
   bpsToPercentString,
+  percentToBps,
 } from "@/lib/money";
 import { loanPlan, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
 
@@ -162,6 +163,23 @@ export function ScheduleEditor({
     const { label, bps } = STAGE_STEPS[i];
     addRow({ label, percentBps: bps, basic: applyBasisPoints(price, BigInt(bps)) });
   };
+
+  // Typing a percentage sets Basic to that share of the price, with GST and
+  // document charges recalculated at the booking rates.
+  function onPercent(i: number, value: string) {
+    let bps: bigint | null = null;
+    try {
+      bps = value && price > 0n ? percentToBps(value) : null;
+    } catch {}
+    if (bps === null || bps < 0n) return patch(i, { percentage: value });
+    const basic = applyBasisPoints(price, bps);
+    patch(i, {
+      percentage: value,
+      basic: paiseToRupeeString(basic),
+      gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
+      doc: paiseToRupeeString(applyBasisPoints(basic, BigInt(docBps))),
+    });
+  }
 
   const gross = (r: Row) =>
     paise(r.basic) + paise(r.gst) + paise(r.other) + paise(r.doc);
@@ -326,7 +344,7 @@ export function ScheduleEditor({
           </div>
           <label className="w-20 text-xs text-muted">
             % of price
-            <input className={inp} value={r.percentage} placeholder="10" onChange={(e) => patch(i, { percentage: e.target.value })} />
+            <input className={inp} value={r.percentage} placeholder="10" onChange={(e) => onPercent(i, e.target.value)} />
           </label>
           <label className="text-xs text-muted">
             Basic (₹)
