@@ -2,9 +2,8 @@ import Link from "next/link";
 import { and, desc, eq, gte, ilike, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers } from "@/db/schema";
-import { loadBookingDetail } from "@/lib/booking-detail";
 import { formatINR } from "@/lib/money";
-import { ACCOUNT_STATUS_LABELS, type AccountStatus } from "@/lib/report-filters";
+import { ACCOUNT_STATUS_LABELS } from "@/lib/report-filters";
 import { loadAccounts } from "@/lib/statement-data";
 import { todayISO } from "@/lib/dates";
 import { CONSTRUCTION_STAGES } from "@/lib/stage";
@@ -67,23 +66,12 @@ export default async function BookingsPage({
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(bookings.bookingDate));
 
-  const withDue = await Promise.all(
-    rawRows.map(async (row) => ({
-      ...row,
-      detail: await loadBookingDetail(row.id),
-    })),
-  );
-  const wantStatus =
-    searchParams.status && searchParams.status in ACCOUNT_STATUS_LABELS
-      ? (searchParams.status as AccountStatus)
-      : undefined;
-  const accounts = wantStatus ? await loadAccounts(todayISO()) : null;
-  const rows = withDue.filter((row) => {
-    if (wantStatus && accounts?.get(row.id)?.status !== wantStatus) return false;
-    if (searchParams.due === "due")
-      return (row.detail?.outstanding.outstanding ?? 0n) > 0n;
-    if (searchParams.due === "paid")
-      return (row.detail?.outstanding.outstanding ?? 0n) <= 0n;
+  const accounts = await loadAccounts(todayISO());
+  const dueOf = (id: string) => accounts.get(id)?.outstanding ?? 0n;
+  const rows = rawRows.filter((row) => {
+    if (searchParams.status && accounts.get(row.id)?.status !== searchParams.status) return false;
+    if (searchParams.due === "due") return dueOf(row.id) > 0n;
+    if (searchParams.due === "paid") return dueOf(row.id) <= 0n;
     return true;
   });
 
@@ -150,10 +138,7 @@ export default async function BookingsPage({
                   <td>{row.paymentType.replace("_", " ")}</td>
                   <td>{row.currentStage?.replaceAll("_", " ") ?? "—"}</td>
                   <td className="money text-right text-due">
-                    {row.detail?.outstanding.outstanding &&
-                    row.detail.outstanding.outstanding > 0n
-                      ? formatINR(row.detail.outstanding.outstanding)
-                      : "₹0"}
+                    {dueOf(row.id) > 0n ? formatINR(dueOf(row.id)) : "₹0"}
                   </td>
                   <td>{row.bookingDate}</td>
                 </tr>

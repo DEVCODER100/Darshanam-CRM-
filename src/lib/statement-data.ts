@@ -97,6 +97,8 @@ export interface AccountInfo {
   totalCost: bigint;
   received: bigint;
   dueNow: bigint;
+  /** Receivable so far minus received; negative means paid in advance. */
+  outstanding: bigint;
 }
 
 export async function loadAccounts(asOf: string): Promise<Map<string, AccountInfo>> {
@@ -145,6 +147,7 @@ export async function loadAccounts(asOf: string): Promise<Map<string, AccountInf
       totalCost,
       received: got,
       dueNow,
+      outstanding: receivable - got,
       status: accountStatus({ totalCost, received: got, dueNow }),
     });
   }
