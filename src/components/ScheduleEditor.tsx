@@ -9,6 +9,7 @@ import {
   applyBasisPoints,
   bpsToPercentString,
 } from "@/lib/money";
+import { loanPlan, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -34,6 +35,13 @@ interface Row {
   docTouched: boolean;
   percentage: string;
 }
+
+type PlanKind = "stage" | "loan" | "custom";
+const KINDS: [PlanKind, string][] = [
+  ["stage", "Stage-wise"],
+  ["loan", "Bank loan"],
+  ["custom", "Custom"],
+];
 
 const blankRow = (): Row => ({
   dueDate: "",
@@ -62,6 +70,8 @@ export function ScheduleEditor({
   gstBps = 0,
   docBps = 0,
   totalPaid = 0n,
+  price = 0n,
+  loanAmount = null,
 }: {
   bookingId: string;
   initial: ScheduleRowInput[];
@@ -69,6 +79,8 @@ export function ScheduleEditor({
   gstBps?: number; // booking GST rate in basis points, e.g. 500 = 5%
   docBps?: number; // booking document-charge rate in basis points, e.g. 590 = 5.9%
   totalPaid?: bigint;
+  price?: bigint; // agreement value the instalment percentages are taken from
+  loanAmount?: bigint | null;
 }) {
   const router = useRouter();
   const gstPct = bpsToPercentString(BigInt(gstBps));
@@ -93,6 +105,7 @@ export function ScheduleEditor({
   const [rows, setRows] = useState<Row[]>(
     initial.length ? initial.map(fromInitial) : [blankRow()],
   );
+  const [kind, setKind] = useState<PlanKind>("custom");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,11 +124,41 @@ export function ScheduleEditor({
     patch(i, next);
   }
 
+  // A row built from a template; GST and document charges follow the booking rates.
+  const planRow = (p: PlanRow): Row => ({
+    ...blankRow(),
+    label: p.label,
+    percentage: bpsToPercentString(BigInt(p.percentBps)),
+    basic: paiseToRupeeString(p.basic),
+    gst: paiseToRupeeString(applyBasisPoints(p.basic, BigInt(gstBps))),
+    doc: paiseToRupeeString(applyBasisPoints(p.basic, BigInt(docBps))),
+  });
+
+  function choose(k: PlanKind) {
+    setKind(k);
+    if (k === "stage") setRows(stagePlan(price).map(planRow));
+    if (k === "loan") setRows(loanPlan(price, loanAmount).map(planRow));
+  }
+
+  const addRow = (p: PlanRow) => setRows((rs) => [...rs, planRow(p)]);
+  const addLumpSum = () => {
+    const left = price - sum((r) => paise(r.basic));
+    addRow({ label: "Lump sum", percentBps: 0, basic: left > 0n ? left : 0n });
+  };
+  const addStage = (i: number) => {
+    const { label, bps } = STAGE_STEPS[i];
+    addRow({ label, percentBps: bps, basic: applyBasisPoints(price, BigInt(bps)) });
+  };
+
   const gross = (r: Row) =>
     paise(r.basic) + paise(r.gst) + paise(r.other) + paise(r.doc);
   const sum = (f: (r: Row) => bigint) => rows.reduce((s, r) => s + f(r), 0n);
 
   async function save() {
+    if (rows.some((r) => gross(r) > 0n && !r.dueDate)) {
+      setError("Set a due date for every instalment.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const payload = {
@@ -238,6 +281,26 @@ export function ScheduleEditor({
       {error && (
         <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>
       )}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted">Plan type</span>
+        {KINDS.map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => choose(k)}
+            className={kind === k ? "btn-primary px-3 py-1.5" : "btn-secondary px-3 py-1.5"}
+          >
+            {label}
+          </button>
+        ))}
+        {kind === "stage" && <span className="text-xs text-muted">One instalment per construction stage (45%, 10%, 15%…). Add dates, then save.</span>}
+        {kind === "loan" && (
+          <span className="text-xs text-muted">
+            Own contribution first, then the bank loan released stage by stage
+            {loanAmount ? "." : " (80% loan assumed; no loan amount recorded yet)."}
+          </span>
+        )}
+        {kind === "custom" && <span className="text-xs text-muted">Mix lump sums and stage instalments freely.</span>}
+      </div>
       {rows.map((r, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2 rounded-md border border-hairline p-3">
           <label className="text-xs text-muted">
@@ -283,6 +346,19 @@ export function ScheduleEditor({
         <button onClick={() => setRows((rs) => [...rs, blankRow()])} className="btn-secondary">
           + Add instalment
         </button>
+        {kind === "custom" && (
+          <>
+            <button onClick={addLumpSum} className="btn-secondary">+ Lump sum (balance)</button>
+            <select
+              className="field w-auto"
+              value=""
+              onChange={(e) => e.target.value && addStage(Number(e.target.value))}
+            >
+              <option value="">+ Add a stage…</option>
+              {STAGE_STEPS.map((st, i) => <option key={st.label} value={i}>{st.label}</option>)}
+            </select>
+          </>
+        )}
         <span>Basic <span className="money">{formatINR(sum((r) => paise(r.basic)))}</span></span>
         <span>GST <span className="money">{formatINR(sum((r) => paise(r.gst)))}</span></span>
         <span>Other <span className="money">{formatINR(sum((r) => paise(r.other)))}</span></span>

@@ -290,6 +290,8 @@ export default async function BookingDetailPage({
             gstBps={cost?.gstPercentBps ?? 0}
             docBps={cost?.documentationPercentBps ?? 0}
             totalPaid={o.totalPaid}
+            price={cost?.agreementValue || cost?.baseCost || 0n}
+            loanAmount={loan?.loanAmount ?? null}
             initial={schedule.map((s) => ({
               dueDate: s.dueDate,
               amount: paiseToRupeeString(s.amount),
