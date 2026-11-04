@@ -56,11 +56,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
   // Group by project when there is more than one.
   const groups = new Map<string, typeof visible>();
   for (const u of visible) {
-    const list = groups.get(u.projectName) ?? [];
+    const key = `${u.projectName}|${u.unitType}`; // one section per project and unit type
+    const list = groups.get(key) ?? [];
     list.push(u);
-    groups.set(u.projectName, list);
+    groups.set(key, list);
   }
-  const showHeadings = board.projects.length > 1; // only in the "All projects" view
+  const showProject = board.projects.length > 1; // project name in headings only in the "All projects" view
 
   const maps = await db
     .select({ id: siteMaps.id, name: siteMaps.name, fileUrl: siteMaps.fileUrl, width: siteMaps.width, height: siteMaps.height, detected: siteMaps.detected })
@@ -212,11 +213,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
           ) : visible.length === 0 ? (
             <p className="text-sm text-muted">No units match these filters.</p>
           ) : (
-            [...groups.entries()].map(([project, list]) => (
-              <section key={project || "all"}>
-                {showHeadings && (
-                  <h2 className="mb-2 text-sm font-medium text-muted">{project || "No project"}</h2>
-                )}
+            [...groups.entries()].map(([key, list]) => (
+              <section key={key}>
+                <h2 className="mb-2 text-sm font-medium text-ink">
+                  {showProject && <span className="text-muted">{list[0].projectName || "No project"} · </span>}
+                  {list[0].unitType}s
+                  <span className="ml-2 font-normal text-muted">
+                    {list.filter((u) => u.status === "booked").length} booked of {list.length}
+                  </span>
+                </h2>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
                   {list.map((u) => (
                     <Link
