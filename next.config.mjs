@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   // exceljs reads .xlsx through jszip, which breaks when bundled; load it as plain Node code.
-  experimental: { serverComponentsExternalPackages: ["exceljs", "jszip"] },
+  experimental: { serverComponentsExternalPackages: ["exceljs", "jszip", "xlsx"] },
 };
 
 export default nextConfig;

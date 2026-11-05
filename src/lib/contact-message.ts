@@ -25,6 +25,25 @@ export const TEMPLATES: { key: string; label: string; text: string }[] = [
   { key: "custom", label: "Custom", text: "Dear {name}, " },
 ];
 
+export const AGENT_TEMPLATES: typeof TEMPLATES = [
+  {
+    key: "brokerage",
+    label: "Brokerage due",
+    text: "Dear {name}, as per our records your brokerage due from {project} is {due}. We will process it shortly. Thank you for your support.",
+  },
+  {
+    key: "greeting",
+    label: "Greeting / festival",
+    text: "Dear {name}, warm greetings from {project}. Wishing you and your family joy and prosperity.",
+  },
+  {
+    key: "inventory",
+    label: "Availability update",
+    text: "Dear {name}, units are available for booking at {project}. Please get in touch for the latest availability and rates. Thank you.",
+  },
+  { key: "custom", label: "Custom", text: "Dear {name}, " },
+];
+
 /** Fill {name}, {unit}, {due}, {project}; anything unknown is left as written. */
 export function renderMessage(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);

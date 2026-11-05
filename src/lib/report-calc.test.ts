@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   agentBrokerageTable,
   agentSalesTable,
-  commission,
   ledgerTable,
   monthsBetween,
   salesByMonth,
@@ -55,28 +54,27 @@ describe("client ledger", () => {
 describe("agents and brokerage", () => {
   const agents: AgentRef[] = [
     { id: "a1", name: "Mehul", mobile: "98", bps: 200 },
-    { id: "a2", name: "Kiran", mobile: null, bps: 150 },
+    { id: "a2", name: "Kiran", mobile: null, bps: 0, plan: { name: "Plan 1", defaultBps: 150, perType: { Villa: 300 } }, reward: { name: "R1", kind: "per_booking", value: 1_000n }, group: "Agent Group" },
   ];
-  const amt = (agentId: string, date: string, amount: bigint): AgentAmount => ({ agentId, date, amount });
-  it("rounds commission to the paisa", () => {
-    expect(commission(1_000_000n, 200)).toBe(20_000n);
-    expect(commission(333n, 150)).toBe(5n); // 4.995 -> 5
-    expect(commission(0n, 200)).toBe(0n);
-  });
-  it("brokerage: earned on basic received in the period, due is cumulative", () => {
+  const amt = (agentId: string, date: string, amount: bigint, extra: Partial<AgentAmount> = {}): AgentAmount => ({ agentId, date, amount, ...extra });
+  it("brokerage: earned on basic received in the period at the plan rate by type, due is cumulative", () => {
     const t = agentBrokerageTable(
       agents,
-      [amt("a1", "2026-08-10", 1_000_000n), amt("a1", "2026-10-10", 500_000n), amt("a2", "2026-10-20", 200_000n)],
-      [amt("a1", "2026-09-01", 10_000n)],
+      [
+        amt("a1", "2026-08-10", 1_000_000n), amt("a1", "2026-10-10", 500_000n),
+        amt("a2", "2026-10-20", 200_000n, { type: "Villa" }), amt("a2", "2026-10-21", 200_000n, { type: "Flat" }),
+      ],
+      [amt("a2", "2026-10-05", 9_999n), amt("a2", "2026-07-05", 9_999n)],
+      [amt("a1", "2026-09-01", 10_000n), amt("a2", "2026-10-25", 500n, { kind: "reward" })],
       { from: "2026-10-01", to: "2026-10-31" },
     );
-    // Mehul: period basic 5,00,000 -> earned 10,000; paid in period 0; due = 2% of 15,00,000 (30,000) - paid 10,000 = 20,000
-    expect(t.rows[0]).toEqual(["Mehul", "2%", 500_000n, 10_000n, 0n, 20_000n]);
-    expect(t.rows[1]).toEqual(["Kiran", "1.5%", 200_000n, 3_000n, 0n, 3_000n]);
-    expect(t.footer).toEqual(["Total", "", 700_000n, 13_000n, 0n, 23_000n]);
+    // Mehul: own 2%: period basic 5,00,000 -> 10,000; due = 2% of 15,00,000 (30,000) - 10,000 paid
+    expect(t.rows[0].slice(0, 6)).toEqual(["Mehul", "2%", 500_000n, 10_000n, 0n, 20_000n]);
+    // Kiran: Villa 2,00,000 x 3% = 6,000 + Flat 2,00,000 x 1.5% = 3,000; reward Rs10/booking x 1 booking in period, 2 to date
+    expect(t.rows[1]).toEqual(["Kiran", "Plan 1", 400_000n, 9_000n, 0n, 9_000n, 1_000n, 500n, 1_500n]);
   });
-  it("agent report: units, value and collections in the period only", () => {
+  it("agent report: units, value and collections in the period only, with plan and group", () => {
     const t = agentSalesTable(agents, [amt("a1", "2026-10-02", 900n), amt("a1", "2026-07-02", 100n)], [amt("a2", "2026-10-05", 50n)], { from: "2026-10-01", to: "2026-10-31" });
-    expect(t.rows).toEqual([["Mehul", "98", 1, 900n, 0n], ["Kiran", "—", 0, 0n, 50n]]);
+    expect(t.rows).toEqual([["Mehul", "98", "—", "—", 1, 900n, 0n], ["Kiran", "—", "Agent Group", "Plan 1", 0, 0n, 50n]]);
   });
 });

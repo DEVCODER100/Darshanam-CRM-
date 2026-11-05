@@ -119,12 +119,12 @@ export function UnitImport() {
         <button onClick={() => setOpen(false)} className="text-muted hover:text-ink">✕</button>
       </div>
       <p className="text-muted">
-        Upload your unit list as .xlsx, .csv or a text PDF (save older .xls files as .xlsx). Check the columns, review the preview, then confirm.
+        Upload your unit list as .xlsx, .xls, .csv or a text PDF. Check the columns, review the preview, then confirm.
         Units go into the project selected at the top. Existing units are never duplicated or deleted.
       </p>
       <input
         type="file"
-        accept=".xlsx,.csv,.pdf"
+        accept=".xlsx,.xls,.csv,.pdf"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
         className="block text-sm"
       />

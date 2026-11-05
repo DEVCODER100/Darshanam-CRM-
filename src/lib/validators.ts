@@ -207,15 +207,63 @@ export const unitCreateSchema = z
     message: "Give a unit number, or a count to create several",
   });
 
-export const agentSchema = z.object({
+const optional = (max = 200) => z.string().trim().max(max).optional();
+const uuidOrBlank = z.string().uuid().or(z.literal("")).optional();
+
+// No defaults here: a PATCH must leave anything it does not mention alone.
+export const agentBase = z.object({
+  title: optional(10),
   name: z.string().trim().min(1, "Give the agent a name").max(80),
-  mobile: z.string().trim().max(20).default(""),
-  pan: z.string().trim().refine((v) => !v || isValidPan(v), "PAN must look like ABCDE1234F").default(""),
-  commissionPercent: z.string().trim().regex(/^\d{1,2}(\.\d{1,2})?$/, "Commission is a percent like 2 or 1.5").default("0"),
+  companyName: optional(),
+  mobile: optional(20),
+  phone: optional(20),
+  email: z.string().trim().email("Email does not look right").or(z.literal("")).optional(),
+  smsOptIn: z.boolean().optional(),
+  emailOptIn: z.boolean().optional(),
+  reraNo: optional(40),
+  gstin: optional(20),
+  pan: z.string().trim().refine((v) => !v || isValidPan(v), "PAN must look like ABCDE1234F").optional(),
+  idProofNo: optional(40),
+  brokeragePlanId: uuidOrBlank,
+  rewardPlanId: uuidOrBlank,
+  address: optional(400),
+  pinCode: optional(12),
+  city: optional(80),
+  state: optional(80),
+  country: optional(80),
+  userGroup: z.string().trim().min(1).max(60).optional(),
+  active: z.boolean().optional(),
+  notes: optional(500),
+  commissionPercent: z.string().trim().regex(/^\d{1,2}(\.\d{1,2})?$/, "Commission is a percent like 2 or 1.5").optional(),
 });
-export const agentPatchSchema = agentSchema.partial().extend({ archived: z.boolean().optional() });
+const needsContact = (v: { mobile?: string; email?: string }) => !!(v.mobile || v.email);
+export const agentSchema = agentBase.refine(needsContact, { message: "Give a mobile number or an email", path: ["mobile"] });
+export const agentPatchSchema = agentBase.partial();
+
+export const planSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("brokerage"),
+    name: z.string().trim().min(1, "Give the plan a name").max(60),
+    defaultPercent: z.string().trim().regex(/^\d{1,2}(\.\d{1,2})?$/, "Use a percent like 2 or 1.5").default("0"),
+    perType: z.record(z.string(), z.string().trim().regex(/^(\d{1,2}(\.\d{1,2})?)?$/, "Use a percent like 2 or 1.5")).default({}),
+  }),
+  z.object({
+    type: z.literal("reward"),
+    name: z.string().trim().min(1, "Give the plan a name").max(60),
+    kind: z.enum(["per_booking", "percent_sales"]),
+    value: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, "Enter a number"), // rupees per booking, or a percent
+  }),
+]);
+export const planPatchSchema = z.object({ type: z.enum(["brokerage", "reward"]), archived: z.boolean().optional() }).and(z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  defaultPercent: z.string().trim().optional(),
+  perType: z.record(z.string(), z.string().trim()).optional(),
+  kind: z.enum(["per_booking", "percent_sales"]).optional(),
+  value: z.string().trim().optional(),
+}));
 export const agentPaymentSchema = z.object({
   paymentDate: isoDate,
+  kind: z.enum(["brokerage", "reward"]).default("brokerage"),
   amount: rupeeString,
   mode: z.string().trim().default("bank_transfer"),
   reference: z.string().trim().default(""),

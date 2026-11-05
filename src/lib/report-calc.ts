@@ -4,6 +4,7 @@
  * Excel/CSV/PDF downloads share one source. No database access here, so it is tested.
  */
 import type { Cell, ExportTable } from "./export-types";
+import { earnedOn, rewardOn, type BrokeragePlan, type RewardPlan } from "./agent-rates";
 import { formatReportDate, shiftMonth } from "./statement";
 
 type Period = { from: string; to: string };
@@ -92,56 +93,67 @@ export interface AgentRef {
   id: string;
   name: string;
   mobile: string | null;
-  bps: number; // commission, 200 = 2%
+  bps: number; // the agent's own commission %, used when there is no plan (200 = 2%)
+  plan?: BrokeragePlan | null;
+  reward?: RewardPlan | null;
+  group?: string;
 }
 export interface AgentAmount {
   agentId: string;
   date: string;
   amount: bigint;
+  type?: string; // unit type, for per-type brokerage rates
+  kind?: "brokerage" | "reward"; // for payments made to the agent
 }
 
-/** Commission on an amount, rounded to the paisa. */
-export const commission = (basic: bigint, bps: number) => (basic * BigInt(bps) + 5000n) / 10000n;
-
-const total = (xs: AgentAmount[], agentId: string, within: (d: string) => boolean) =>
-  xs.filter((x) => x.agentId === agentId && within(x.date)).reduce((s, x) => s + x.amount, 0n);
-const count = (xs: AgentAmount[], agentId: string, within: (d: string) => boolean) =>
-  xs.filter((x) => x.agentId === agentId && within(x.date)).length;
+const mine = (xs: AgentAmount[], a: AgentRef, within: (d: string) => boolean) =>
+  xs.filter((x) => x.agentId === a.id && within(x.date));
+const sumOf = (xs: AgentAmount[]) => xs.reduce((s, x) => s + x.amount, 0n);
 
 /** Units brought, value sold and money collected per agent in the period. */
 export function agentSalesTable(agents: AgentRef[], sold: AgentAmount[], collected: AgentAmount[], period: Period): ExportTable {
   const inP = (d: string) => d >= period.from && d <= period.to;
-  const rows = agents.map((a) => ({ a, units: count(sold, a.id, inP), value: total(sold, a.id, inP), got: total(collected, a.id, inP) }));
+  const rows = agents.map((a) => ({ a, s: mine(sold, a, inP), c: mine(collected, a, inP) }));
   return {
     title: `Agent report ${formatReportDate(period.from)} to ${formatReportDate(period.to)}`,
-    columns: [{ header: "Agent" }, { header: "Mobile" }, { header: "Units booked", align: "right" }, { header: "Sales value (Rs)", money: true }, { header: "Collected in period (Rs)", money: true }],
-    rows: rows.map((r): Cell[] => [r.a.name, r.a.mobile ?? "—", r.units, r.value, r.got]),
-    footer: ["Total", "", rows.reduce((s, r) => s + r.units, 0), rows.reduce((s, r) => s + r.value, 0n), rows.reduce((s, r) => s + r.got, 0n)],
+    columns: [{ header: "Agent" }, { header: "Mobile" }, { header: "Group" }, { header: "Brokerage plan" }, { header: "Units booked", align: "right" }, { header: "Sales value (Rs)", money: true }, { header: "Collected in period (Rs)", money: true }],
+    rows: rows.map((r): Cell[] => [r.a.name, r.a.mobile ?? "—", r.a.group ?? "—", r.a.plan?.name ?? "—", r.s.length, sumOf(r.s), sumOf(r.c)]),
+    footer: ["Total", "", "", "", rows.reduce((t, r) => t + r.s.length, 0), rows.reduce((t, r) => t + sumOf(r.s), 0n), rows.reduce((t, r) => t + sumOf(r.c), 0n)],
   };
 }
 
 /**
- * Brokerage: commission is earned on the basic amount actually received, and what has
- * been paid out is deducted; "due" is cumulative up to the To date.
+ * Brokerage is earned on the basic amount actually received, each unit type at its plan rate;
+ * rewards on bookings made. What was paid out is deducted; "due" is cumulative up to the To date.
  */
-export function agentBrokerageTable(agents: AgentRef[], basicReceived: AgentAmount[], paid: AgentAmount[], period: Period): ExportTable {
+export function agentBrokerageTable(agents: AgentRef[], basicReceived: AgentAmount[], sold: AgentAmount[], paid: AgentAmount[], period: Period): ExportTable {
   const inP = (d: string) => d >= period.from && d <= period.to;
   const upTo = (d: string) => d <= period.to;
   const rows = agents.map((a) => {
-    const basic = total(basicReceived, a.id, inP);
+    const earn = (within: (d: string) => boolean) => earnedOn(a.plan, a.bps, mine(basicReceived, a, within).map((x) => ({ type: x.type ?? "", amount: x.amount })));
+    const reward = (within: (d: string) => boolean) => rewardOn(a.reward, mine(sold, a, within).map((x) => x.amount));
+    const payments = (kind: "brokerage" | "reward", within: (d: string) => boolean) => sumOf(mine(paid, a, within).filter((x) => (x.kind ?? "brokerage") === kind));
     return {
       a,
-      basic,
-      earned: commission(basic, a.bps),
-      paid: total(paid, a.id, inP),
-      due: commission(total(basicReceived, a.id, upTo), a.bps) - total(paid, a.id, upTo),
+      basic: sumOf(mine(basicReceived, a, inP)),
+      earned: earn(inP),
+      paid: payments("brokerage", inP),
+      due: earn(upTo) - payments("brokerage", upTo),
+      rEarned: reward(inP),
+      rPaid: payments("reward", inP),
+      rDue: reward(upTo) - payments("reward", upTo),
     };
   });
   const sum = (f: (r: (typeof rows)[number]) => bigint) => rows.reduce((s, r) => s + f(r), 0n);
   return {
     title: `Agent brokerage ${formatReportDate(period.from)} to ${formatReportDate(period.to)}`,
-    columns: [{ header: "Agent" }, { header: "Commission %", align: "right" }, { header: "Basic received (Rs)", money: true }, { header: "Earned (Rs)", money: true }, { header: "Paid (Rs)", money: true }, { header: "Due as on To date (Rs)", money: true }],
-    rows: rows.map((r): Cell[] => [r.a.name, `${r.a.bps / 100}%`, r.basic, r.earned, r.paid, r.due]),
-    footer: ["Total", "", sum((r) => r.basic), sum((r) => r.earned), sum((r) => r.paid), sum((r) => r.due)],
+    landscape: true,
+    columns: [
+      { header: "Agent" }, { header: "Plan" }, { header: "Basic received (Rs)", money: true }, { header: "Brokerage earned (Rs)", money: true },
+      { header: "Brokerage paid (Rs)", money: true }, { header: "Brokerage due (Rs)", money: true },
+      { header: "Reward earned (Rs)", money: true }, { header: "Reward paid (Rs)", money: true }, { header: "Reward due (Rs)", money: true },
+    ],
+    rows: rows.map((r): Cell[] => [r.a.name, r.a.plan?.name ?? `${r.a.bps / 100}%`, r.basic, r.earned, r.paid, r.due, r.rEarned, r.rPaid, r.rDue]),
+    footer: ["Total", "", sum((r) => r.basic), sum((r) => r.earned), sum((r) => r.paid), sum((r) => r.due), sum((r) => r.rEarned), sum((r) => r.rPaid), sum((r) => r.rDue)],
   };
 }

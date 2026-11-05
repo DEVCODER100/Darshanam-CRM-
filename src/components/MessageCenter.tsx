@@ -21,15 +21,29 @@ export interface ContactRow {
  * No messages are sent by the site itself: it opens the user's own WhatsApp, SMS or email
  * app with the message filled in, one customer at a time.
  */
-export function MessageCenter({ rows, project }: { rows: ContactRow[]; project: string }) {
+export function MessageCenter({
+  rows,
+  project,
+  templates = TEMPLATES,
+  unitsHeader = "Unit(s)",
+  dueHeader = "Due now",
+  linkBase = "/customers",
+}: {
+  rows: ContactRow[];
+  project: string;
+  templates?: typeof TEMPLATES;
+  unitsHeader?: string;
+  dueHeader?: string;
+  linkBase?: string; // where a name links to: linkBase/<id>
+}) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [tpl, setTpl] = useState("reminder");
-  const [text, setText] = useState(TEMPLATES[0].text);
+  const [tpl, setTpl] = useState(templates[0].key);
+  const [text, setText] = useState(templates[0].text);
   const [queue, setQueue] = useState<number | null>(null); // index into the picked list while sending one by one
   const [note, setNote] = useState("");
 
   const chosen = useMemo(() => rows.filter((r) => picked.has(r.id)), [rows, picked]);
-  const msg = (r: ContactRow) => renderMessage(text, { name: r.name.split(" ")[0], unit: r.units.join(", ") || "your unit", due: r.dueText || "as per your payment schedule", project });
+  const msg = (r: ContactRow) => renderMessage(text, { name: r.name.split(" ")[0], unit: r.units.join(", ") || "your unit", due: r.dueText || "as per our records", project });
   const toggle = (id: string) =>
     setPicked((s) => {
       const n = new Set(s);
@@ -58,7 +72,7 @@ export function MessageCenter({ rows, project }: { rows: ContactRow[]; project: 
       <div className="card space-y-3 p-4 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">Message</span>
-          {TEMPLATES.map((t) => (
+          {templates.map((t) => (
             <button key={t.key} type="button" onClick={() => { setTpl(t.key); setText(t.text); }} className={tpl === t.key ? "btn-primary px-3 py-1" : "btn-secondary px-3 py-1"}>
               {t.label}
             </button>
@@ -106,7 +120,7 @@ export function MessageCenter({ rows, project }: { rows: ContactRow[]; project: 
               <th>
                 <input type="checkbox" aria-label="Select all" checked={rows.length > 0 && picked.size === rows.length} onChange={(e) => setPicked(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())} />
               </th>
-              <th>Customer</th><th>Mobile</th><th>Email</th><th>Unit(s)</th><th className="text-right">Due now</th><th>Contact</th>
+              <th>Customer</th><th>Mobile</th><th>Email</th><th>{unitsHeader}</th><th className="text-right">{dueHeader}</th><th>Contact</th>
             </tr>
           </thead>
           <tbody>
@@ -115,7 +129,7 @@ export function MessageCenter({ rows, project }: { rows: ContactRow[]; project: 
               <tr key={r.id}>
                 <td><input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Select ${r.name}`} /></td>
                 <td>
-                  <a href={`/customers/${r.id}`} className="font-medium text-brass-dark hover:underline">{r.name}</a>
+                  <a href={`${linkBase}/${r.id}`} className="font-medium text-brass-dark hover:underline">{r.name}</a>
                   {r.clientCode && <span className="ml-2 text-xs text-muted">{r.clientCode}</span>}
                 </td>
                 <td className="whitespace-nowrap">{r.mobile}</td>

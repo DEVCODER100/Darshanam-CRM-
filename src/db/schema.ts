@@ -150,17 +150,59 @@ export const projects = pgTable(
   (t) => ({ uniqueName: uniqueIndex("projects_name_area_idx").on(t.name, t.area) }),
 );
 
-// A broker/agent who brings buyers; commission is a share of the basic amount received.
-export const agents = pgTable("agents", {
+// How an agent's brokerage is worked out: a default % and optional % per unit type.
+export const brokeragePlans = pgTable("brokerage_plans", {
   id: uuid("id").defaultRandom().primaryKey(),
   projectId: uuid("project_id").references(() => projects.id),
   name: text("name").notNull(),
-  mobile: text("mobile"),
-  panMasked: text("pan_masked"), // the full PAN is not kept for agents
-  commissionBps: integer("commission_bps").notNull().default(0), // 200 = 2%
+  defaultBps: integer("default_bps").notNull().default(0), // 200 = 2%
+  perType: jsonb("per_type").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`), // {"Villa": 250}
   archived: boolean("archived").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// A bonus on top of brokerage: a fixed amount per booking, or a % of sales value.
+export const rewardPlans = pgTable("reward_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").references(() => projects.id),
+  name: text("name").notNull(),
+  kind: text("kind").$type<"per_booking" | "percent_sales">().notNull().default("per_booking"),
+  value: bigint("value", { mode: "bigint" }).notNull().default(sql`0`), // paise per booking, or basis points of sales
+  archived: boolean("archived").notNull().default(false),
+});
+
+// A broker/agent who brings buyers. Commission follows their brokerage plan (or their own % if none).
+export const agents = pgTable("agents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").references(() => projects.id),
+  agentCode: text("agent_code"), // AG001
+  title: text("title"),
+  name: text("name").notNull(),
+  companyName: text("company_name"),
+  mobile: text("mobile"),
+  phone: text("phone"),
+  email: text("email"),
+  smsOptIn: boolean("sms_opt_in").notNull().default(true),
+  emailOptIn: boolean("email_opt_in").notNull().default(true),
+  reraNo: text("rera_no"),
+  gstin: text("gstin"),
+  panMasked: text("pan_masked"),
+  panEncrypted: text("pan_encrypted"), // full PAN, encrypted like a client's
+  panHash: text("pan_hash"),
+  idProofEncrypted: text("id_proof_encrypted"),
+  address: text("address"),
+  pinCode: text("pin_code"),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  userGroup: text("user_group").notNull().default("Agent Group"),
+  brokeragePlanId: uuid("brokerage_plan_id").references(() => brokeragePlans.id, { onDelete: "set null" }),
+  rewardPlanId: uuid("reward_plan_id").references(() => rewardPlans.id, { onDelete: "set null" }),
+  commissionBps: integer("commission_bps").notNull().default(0), // own %, used when there is no plan
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false), // shown as User Status: Inactive
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ codeIdx: uniqueIndex("agents_code_idx").on(t.agentCode) }));
 
 export const customers = pgTable(
   "customers",
@@ -406,6 +448,7 @@ export const agentPayments = pgTable("agent_payments", {
   agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
   paymentDate: date("payment_date").notNull(),
   amount: paise("amount").notNull(),
+  kind: text("kind").$type<"brokerage" | "reward">().notNull().default("brokerage"),
   mode: text("mode").notNull().default("bank_transfer"),
   reference: text("reference"),
   note: text("note"),

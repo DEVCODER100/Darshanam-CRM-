@@ -3,11 +3,11 @@ import { db } from "@/db";
 import { agents, auditLog } from "@/db/schema";
 import { requireCapability } from "@/lib/rbac";
 import { auditEntry } from "@/lib/audit";
-import { parseBody } from "@/lib/api";
+import { parseBody, jsonError } from "@/lib/api";
 import { agentSchema } from "@/lib/validators";
-import { maskPan, normalizePan } from "@/lib/pan-format";
+import { agentColumns } from "@/lib/agent-write";
+import { nextCode } from "@/lib/codes";
 import { needProject } from "@/lib/project-scope";
-import { percentToBps } from "@/lib/money";
 
 // POST /api/agents — add an agent to the selected project (agent:manage).
 export async function POST(req: Request) {
@@ -18,18 +18,19 @@ export async function POST(req: Request) {
 
   const parsed = await parseBody(req, agentSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, mobile, pan, commissionPercent } = parsed.data;
 
+  let cols;
+  try {
+    cols = agentColumns(parsed.data);
+  } catch (err) {
+    console.error(err);
+    return jsonError("PAN storage is not configured on the server (PAN_ENCRYPTION_KEY).", 500);
+  }
+  const codes = (await db.select({ c: agents.agentCode }).from(agents)).map((r) => r.c);
   const [row] = await db
     .insert(agents)
-    .values({
-      projectId: scope.project.id,
-      name,
-      mobile: mobile || null,
-      panMasked: pan ? maskPan(normalizePan(pan)) : null,
-      commissionBps: Number(percentToBps(commissionPercent)),
-    })
+    .values({ ...cols, name: parsed.data.name, projectId: scope.project.id, agentCode: nextCode("AG", codes), createdBy: gate.user.id })
     .returning();
-  await db.insert(auditLog).values(auditEntry({ userId: gate.user.id, action: "create", entityType: "agent", entityId: row.id, after: row }));
+  await db.insert(auditLog).values(auditEntry({ userId: gate.user.id, action: "create", entityType: "agent", entityId: row.id, after: { ...row, panEncrypted: undefined, idProofEncrypted: undefined } }));
   return NextResponse.json({ id: row.id }, { status: 201 });
 }

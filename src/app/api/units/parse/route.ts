@@ -6,7 +6,8 @@ import { readTable } from "@/lib/unit-file-parse";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST /api/units/parse — read an uploaded .xlsx / .csv into a grid of text (unit:manage).
+// POST /api/units/parse — read an uploaded .xlsx / .xls / .csv into a grid of text (unit:manage).
+// Used by the unit import and the agent import.
 // PDFs are read in the browser instead; the grid goes through the same import preview.
 export async function POST(req: Request) {
   const gate = await requireCapability("unit:manage");
@@ -14,10 +15,7 @@ export async function POST(req: Request) {
 
   const file = (await req.formData().catch(() => null))?.get("file");
   if (!(file instanceof File)) return jsonError("Choose a file to upload", 422);
-  if (/\.xls$/i.test(file.name)) {
-    return jsonError("Old .xls files are not supported. Open it in Excel and Save As .xlsx.", 415);
-  }
-  if (!/\.(xlsx|csv)$/i.test(file.name)) return jsonError("Upload an .xlsx, .csv or .pdf file", 415);
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) return jsonError("Upload an .xlsx, .xls or .csv file", 415);
 
   try {
     return NextResponse.json({ rows: await readTable(Buffer.from(await file.arrayBuffer()), file.name) });
