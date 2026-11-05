@@ -416,7 +416,12 @@ export const documents = pgTable(
     }),
     documentType: text("document_type").notNull(),
     fileName: text("file_name").notNull(),
-    fileUrl: text("file_url").notNull(),
+    fileUrl: text("file_url").notNull(), // /api/documents/<id>/file, or an old public link
+    // The file itself, base64, kept in the database. Never select it in list queries.
+    data: text("data").notNull().default(""),
+    mimeType: text("mime_type"),
+    sizeBytes: integer("size_bytes"),
+    note: text("note"),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

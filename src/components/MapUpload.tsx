@@ -5,31 +5,10 @@ import { useRouter } from "next/navigation";
 import type { MapLabel } from "@/db/schema";
 import { detectLabels } from "@/lib/map-boxes";
 import { loadPdfJs } from "@/lib/pdfjs-loader";
+import { imageToCanvas, shrinkCanvas } from "@/lib/image-shrink";
 
 const MAX_SIDE = 3200; // longest side of the stored map image, in pixels
 const MAX_BYTES = 4_200_000; // stay under the host's upload limit
-
-const toBlob = (c: HTMLCanvasElement, q: number) =>
-  new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("Could not encode the image"))), "image/jpeg", q));
-
-/** Squeeze a canvas into a JPEG under the upload limit (lower quality, then smaller size). */
-async function shrink(canvas: HTMLCanvasElement): Promise<Blob> {
-  let c = canvas;
-  for (let scale = 1; ; scale *= 0.8) {
-    if (scale < 1) {
-      const next = document.createElement("canvas");
-      next.width = Math.round(canvas.width * scale);
-      next.height = Math.round(canvas.height * scale);
-      next.getContext("2d")!.drawImage(canvas, 0, 0, next.width, next.height);
-      c = next;
-    }
-    for (const q of [0.9, 0.78, 0.65]) {
-      const blob = await toBlob(c, q);
-      if (blob.size <= MAX_BYTES) return blob;
-    }
-    if (scale < 0.3) throw new Error("That map is too large to upload");
-  }
-}
 
 /** First page of a PDF as an image, plus the unit-number-like text on it. */
 async function fromPdf(file: File) {
@@ -62,16 +41,7 @@ async function fromPdf(file: File) {
 }
 
 async function fromImage(file: File) {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * k);
-  canvas.height = Math.round(bmp.height * k);
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return { canvas, detected: [] as MapLabel[] };
+  return { canvas: await imageToCanvas(file, MAX_SIDE), detected: [] as MapLabel[] };
 }
 
 /** Upload a site map (picture or PDF). PDFs are turned into a picture here, in the browser. */
@@ -92,7 +62,7 @@ export function MapUpload() {
       const { canvas, detected } = /\.pdf$/i.test(file.name) ? await fromPdf(file) : await fromImage(file);
       setStatus("Uploading…");
       const form = new FormData();
-      form.append("file", new File([await shrink(canvas)], "map.jpg", { type: "image/jpeg" }));
+      form.append("file", new File([await shrinkCanvas(canvas, MAX_BYTES)], "map.jpg", { type: "image/jpeg" }));
       form.append("name", name || file.name.replace(/\.[^.]+$/, ""));
       form.append("width", String(canvas.width));
       form.append("height", String(canvas.height));

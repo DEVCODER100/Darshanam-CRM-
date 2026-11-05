@@ -191,19 +191,6 @@ export const stageUpdateSchema = z.object({
   remarks: z.string().trim().optional().or(z.literal("")),
 });
 
-export const documentCreateSchema = z.object({
-  documentType: z.enum([
-    "aadhaar",
-    "pan",
-    "agreement",
-    "loan_document",
-    "other",
-  ]),
-  fileName: z.string().trim().min(1),
-  fileUrl: z.string().url(),
-  bookingId: z.string().uuid().nullable().optional(),
-});
-
 export const UNIT_TYPES = ["Villa", "Bungalow", "Apartment", "Flat", "Shop", "Plot"] as const;
 
 // Add one unit (unitNumber) or many at once (count + start -> numbers start..start+count-1).

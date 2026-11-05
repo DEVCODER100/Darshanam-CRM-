@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, customers, documents, propertyCosts, payments } from "@/db/schema";
+import { bookings, customers, documents, propertyCosts, payments, users } from "@/db/schema";
 import { DocumentPanel } from "@/components/DocumentPanel";
 import { StagePanel } from "@/components/StagePanel";
 import { can } from "@/lib/permissions";
@@ -10,6 +10,7 @@ import { getCurrentUser } from "@/lib/rbac";
 import { displayPan, revealText } from "@/lib/pan";
 import { jointView } from "@/lib/customer-public";
 import { PROFILE_SECTIONS } from "@/lib/customer-profile";
+import { canOpen } from "@/lib/document-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,19 @@ export default async function CustomerDetailPage({
       .where(eq(bookings.customerId, customer.id))
       .orderBy(desc(bookings.bookingDate)),
     db
-      .select()
+      .select({
+        id: documents.id,
+        documentType: documents.documentType,
+        fileName: documents.fileName,
+        fileUrl: documents.fileUrl,
+        note: documents.note,
+        sizeBytes: documents.sizeBytes,
+        bookingId: documents.bookingId,
+        createdAt: documents.createdAt,
+        uploadedBy: users.name,
+      })
       .from(documents)
+      .leftJoin(users, eq(users.id, documents.createdBy))
       .where(eq(documents.customerId, customer.id))
       .orderBy(desc(documents.createdAt)),
   ]);
@@ -201,7 +213,19 @@ export default async function CustomerDetailPage({
         <h2 className="mb-3 text-lg font-medium">Documents</h2>
         <DocumentPanel
           customerId={customer.id}
-          documents={customerDocuments}
+          bookings={customerBookings.map((b) => ({ id: b.id, label: `${b.propertyType} ${b.propertyNumber ?? ""}`.trim() }))}
+          documents={customerDocuments.map((d) => ({
+            id: d.id,
+            documentType: d.documentType,
+            fileName: d.fileName,
+            // Aadhaar / PAN / address proof: no link unless the viewer has sensitive access.
+            fileUrl: canOpen(d.documentType, canSee) ? d.fileUrl : null,
+            note: d.note,
+            sizeBytes: d.sizeBytes,
+            uploadedOn: d.createdAt.toISOString().slice(0, 10),
+            uploadedBy: d.uploadedBy,
+            booking: customerBookings.find((b) => b.id === d.bookingId)?.propertyNumber ?? null,
+          }))}
           canEdit={!!user && can(user.role, "document:upload")}
         />
       </section>
