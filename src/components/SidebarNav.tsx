@@ -12,6 +12,7 @@ const ITEMS = [
   ["/stages", "Stages"],
   ["/calendar", "Calendar"],
   ["/reports", "Reports"],
+  ["/agents", "Agents"],
   ["/audit", "Audit"],
   ["/team", "Team"],
 ] as const;

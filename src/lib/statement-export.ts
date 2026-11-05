@@ -216,7 +216,7 @@ export async function buildStatementXlsx(sheet: StatementSheet): Promise<Buffer>
   const wb = new ExcelJS.Workbook();
   wb.creator = "Darshanam CRM";
   wb.created = new Date();
-  const ws = wb.addWorksheet(sheet.title.slice(0, 31));
+  const ws = wb.addWorksheet(sheet.title.replace(/[\/?*[\]:]/g, "-").slice(0, 31));
   const cols = sheet.columns.length;
 
   // Title and tip rows, merged across the table like the reference files.

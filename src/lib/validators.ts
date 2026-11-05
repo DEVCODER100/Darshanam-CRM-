@@ -80,6 +80,7 @@ export const customerUpdateSchema = customerBase.partial().superRefine((v, ctx) 
 export const bookingCreateSchema = z.object({
   customerId: z.string().uuid(),
   unitId: z.string().uuid().optional(),
+  agentId: z.string().uuid().nullable().optional(),
   bookingDate: isoDate,
   projectName: z.string().trim().optional().or(z.literal("")),
   propertyType: z.enum(["Villa", "Bungalow", "Plot", "Apartment", "Flat", "Shop"]),
@@ -205,6 +206,21 @@ export const unitCreateSchema = z
   .refine((v) => v.unitNumber || v.count, {
     message: "Give a unit number, or a count to create several",
   });
+
+export const agentSchema = z.object({
+  name: z.string().trim().min(1, "Give the agent a name").max(80),
+  mobile: z.string().trim().max(20).default(""),
+  pan: z.string().trim().refine((v) => !v || isValidPan(v), "PAN must look like ABCDE1234F").default(""),
+  commissionPercent: z.string().trim().regex(/^\d{1,2}(\.\d{1,2})?$/, "Commission is a percent like 2 or 1.5").default("0"),
+});
+export const agentPatchSchema = agentSchema.partial().extend({ archived: z.boolean().optional() });
+export const agentPaymentSchema = z.object({
+  paymentDate: isoDate,
+  amount: rupeeString,
+  mode: z.string().trim().default("bank_transfer"),
+  reference: z.string().trim().default(""),
+  note: z.string().trim().default(""),
+});
 
 export const projectSchema = z.object({
   name: z.string().trim().min(1, "Give the project a name").max(80),

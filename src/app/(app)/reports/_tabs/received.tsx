@@ -10,7 +10,7 @@ import { getReceivedReport } from "@/lib/statement-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReceivedReportPage({ searchParams }: { searchParams: Params }) {
+export default async function ReceivedReport({ searchParams }: { searchParams: Params }) {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "report:view")) return <Forbidden />;
 
@@ -25,8 +25,7 @@ export default async function ReceivedReportPage({ searchParams }: { searchParam
   return (
     <div className="space-y-4">
       <div>
-        <Link href="/reports" className="text-sm text-brass-dark hover:underline">← All reports</Link>
-        <h1 className="mt-2 text-2xl font-medium">Payment received</h1>
+        <h1 className="text-2xl font-medium">Payment received</h1>
         <p className="text-sm text-muted">Money received in the period, split into basic, GST and other charges.</p>
       </div>
 

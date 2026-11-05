@@ -8,20 +8,7 @@ import {
   type Period,
 } from "@/lib/report-filters";
 import { MODE_LABELS } from "@/lib/statement-data";
-
-/** Rebuild a query string from the current URL params, with overrides. */
-function queryString(sp: Params, override: Record<string, string | null> = {}): string {
-  const out = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    const val = Array.isArray(v) ? v[0] : v;
-    if (val) out.set(k, val);
-  }
-  for (const [k, v] of Object.entries(override)) {
-    if (v === null) out.delete(k);
-    else out.set(k, v);
-  }
-  return out.toString();
-}
+import { queryString } from "@/lib/query-string";
 
 type Kind = "received" | "due";
 
@@ -47,7 +34,7 @@ export function ReportFilterBar({
   active: number;
   options: { banks?: string[]; milestones?: string[]; loanBanks?: string[] };
 }) {
-  const basePath = `/reports/${kind}`;
+  const basePath = "/reports"; // the hub; `r` (the tab) travels in the query string
   const val = (k: string) => {
     const v = sp[k];
     return (Array.isArray(v) ? v[0] : v) ?? "";
@@ -86,6 +73,7 @@ export function ReportFilterBar({
       </div>
 
       <form method="get" className="space-y-3 border-t border-hairline pt-3">
+        <input type="hidden" name="r" value={kind} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Month">
             <input
@@ -183,7 +171,7 @@ export function ReportFilterBar({
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn-primary px-4 py-1.5">Apply filters</button>
           {active > 0 || !month ? (
-            <Link href={`${basePath}?month=${month ?? period.from.slice(0, 7)}`} className="text-sm text-brass-dark hover:underline">
+            <Link href={`${basePath}?r=${kind}&month=${month ?? period.from.slice(0, 7)}`} className="text-sm text-brass-dark hover:underline">
               Clear filters
             </Link>
           ) : null}

@@ -14,7 +14,7 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-medium">Overview</h1>
         <div className="flex items-center gap-4 text-sm">
           <Link href="/calendar" className="text-brass-dark hover:underline">Calendar →</Link>
-          <Link href="/reports/gst" className="text-brass-dark hover:underline">GST tracker →</Link>
+          <Link href="/reports?r=gst" className="text-brass-dark hover:underline">GST tracker →</Link>
           <Link href="/reports" className="text-brass-dark hover:underline">Reports →</Link>
         </div>
       </div>
@@ -24,10 +24,10 @@ export default async function DashboardPage() {
         <Card label="Total bookings" value={String(d.totalBookings)} href="/bookings" />
         <Card label="Total sales value" value={formatINR(d.totalSalesValue, { paise2dp: false })} />
         <Card label="Total receivable" value={formatINR(d.totalReceivable, { paise2dp: false })} />
-        <Card label="Total received" value={formatINR(d.totalReceived, { paise2dp: false })} href="/reports/monthly" />
-        <Card label="Total outstanding" value={formatINR(d.totalOutstanding, { paise2dp: false })} accent="amber" href="/reports/outstanding" />
-        <Card label="Pending loan amount" value={formatINR(d.pendingLoanAmount, { paise2dp: false })} href="/reports/loan" />
-        <Card label="Active loans" value={String(d.activeLoans)} href="/reports/loan" />
+        <Card label="Total received" value={formatINR(d.totalReceived, { paise2dp: false })} href="/reports?r=monthly" />
+        <Card label="Total outstanding" value={formatINR(d.totalOutstanding, { paise2dp: false })} accent="amber" href="/reports?r=outstanding" />
+        <Card label="Pending loan amount" value={formatINR(d.pendingLoanAmount, { paise2dp: false })} href="/reports?r=loan" />
+        <Card label="Active loans" value={String(d.activeLoans)} href="/reports?r=loan" />
       </section>
 
       <section>

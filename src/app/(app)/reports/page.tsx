@@ -2,39 +2,51 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
 import { Forbidden } from "@/components/ReportForbidden";
+import { ReportTableTab } from "@/components/ReportTableTab";
+import { TABS, tabOf } from "@/lib/report-hub";
+import type { Params } from "@/lib/report-filters";
+import ReceivedReport from "./_tabs/received";
+import DueReport from "./_tabs/due";
+import StatementReport from "./_tabs/statement";
+import GstTracker from "./_tabs/gst";
 
 export const dynamic = "force-dynamic";
 
-const REPORTS = [
-  ["/reports/received", "Payment received", "Month-wise receipts split into basic, CGST, SGST and other charges."],
-  ["/reports/due", "Payment due", "Month-wise unpaid instalments with GST, other charges and days overdue."],
-  ["/reports/statement", "Statement", "Receivable, received and due for installments, GST and other charges."],
-  ["/reports/outstanding", "Outstanding", "All bookings with dues outstanding, highest first."],
-  ["/reports/customer", "Customer", "Every customer with bookings and full payment history."],
-  ["/reports/unit", "Unit", "Booked units, project, status, value, stage and payment type."],
-  ["/reports/payment", "Payment", "Transaction-level payment history across all units."],
-  ["/reports/loan", "Loan", "Loan status across all bookings."],
-  ["/reports/stage", "Stage-wise collection", "Receivable, received and pending by construction stage."],
-  ["/reports/gst", "GST tracker", "GST receivable, collected and due per unit."],
-  ["/reports/monthly", "Monthly collection", "Payments received, grouped by month."],
-] as const;
+const CUSTOM = { received: ReceivedReport, due: DueReport, statement: StatementReport, gst: GstTracker } as const;
 
-export default async function ReportsPage() {
+/** One Reports page: the tab buttons on top, the chosen report (with its date filter) below. */
+export default async function ReportsPage({ searchParams }: { searchParams: Params }) {
   const user = await getCurrentUser();
-  if (!user || !can(user.role, "report:view")) {
-    return <Forbidden />;
-  }
+  if (!user || !can(user.role, "report:view")) return <Forbidden />;
+
+  const visible = TABS.filter((t) => !t.capability || can(user.role, t.capability));
+  const first = Array.isArray(searchParams.r) ? searchParams.r[0] : searchParams.r;
+  const tab = visible.find((t) => t.key === first) ?? visible[0];
+  const Custom = tab.custom ? CUSTOM[tab.key as keyof typeof CUSTOM] : null;
+  const month = (Array.isArray(searchParams.month) ? searchParams.month[0] : searchParams.month) ?? "";
+
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-medium">Reports</h1>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {REPORTS.map(([href, title, desc]) => (
-          <Link key={href} href={href} className="rounded-lg border border-hairline bg-white p-4 hover:border-blue-300">
-            <p className="font-medium text-brass-dark">{title}</p>
-            <p className="mt-1 text-sm text-muted">{desc}</p>
-          </Link>
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <h1 className="sr-only">Reports</h1>
+        {[1, 2].map((row) => (
+          <nav key={row} className="flex flex-wrap gap-2">
+            {visible.filter((t) => t.row === row).map((t) => (
+              <Link
+                key={t.key}
+                href={`/reports?r=${t.key}${month && t.key === tab.key ? `&month=${month}` : ""}`}
+                className={`rounded-md border px-4 py-2 text-sm ${
+                  t.key === tab.key ? "border-ink bg-ink font-medium text-white" : "border-hairline bg-surface text-muted hover:text-ink"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
         ))}
       </div>
+
+      {Custom ? <Custom searchParams={searchParams} /> : <ReportTableTab tab={tab} sp={searchParams} />}
     </div>
   );
 }

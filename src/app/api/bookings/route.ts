@@ -98,6 +98,7 @@ export async function POST(req: Request) {
     ),
     bookingDate: input.bookingDate,
     projectId: unit.projectId,
+    agentId: input.agentId ?? null,
     projectName: unit.projectName || null,
     propertyType: unit.unitType,
     propertyNumber: unit.unitNumber.startsWith("(") ? null : unit.unitNumber,

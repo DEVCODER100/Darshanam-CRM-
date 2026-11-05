@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { bookings, customers, units } from "@/db/schema";
 import { BookingForm } from "@/components/BookingForm";
 import { blockActive } from "@/lib/unit-block";
+import { agentChoices } from "@/lib/agent-choices";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function NewBookingPage({
         </p>
       )}
       <BookingForm
+        agents={await agentChoices(unit?.projectId ?? customer!.projectId)}
         customerId={customer!.id}
         unit={
           unit

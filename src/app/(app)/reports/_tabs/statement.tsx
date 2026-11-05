@@ -12,7 +12,7 @@ import type { StatementLine } from "@/lib/statement-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function StatementPage({
+export default async function StatementReport({
   searchParams,
 }: {
   searchParams: { month?: string };
@@ -27,15 +27,14 @@ export default async function StatementPage({
   return (
     <div className="space-y-5">
       <div>
-        <Link href="/reports" className="text-sm text-brass-dark hover:underline">← All reports</Link>
-        <h1 className="mt-2 text-2xl font-medium">Statement</h1>
+        <h1 className="text-2xl font-medium">Statement</h1>
         <p className="text-sm text-muted">
           Receivable, received and due for installments, GST and other charges. Due is as of{" "}
           {formatReportDate(s.asOf)}. Stage-based units are tracked on the Stages page.
         </p>
       </div>
 
-      <MonthBar basePath="/reports/statement" month={month} exportType="statement" />
+      <MonthBar month={month} exportType="statement" />
 
       <section>
         <h2 className="mb-3 text-lg font-medium">This month</h2>

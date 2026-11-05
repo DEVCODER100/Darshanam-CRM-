@@ -40,6 +40,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const update: Partial<typeof bookings.$inferInsert> = {};
   if (input.bookingDate !== undefined) update.bookingDate = input.bookingDate;
+  if (input.agentId !== undefined) update.agentId = input.agentId;
   if (input.propertyType !== undefined) update.propertyType = input.propertyType;
   if (input.propertyNumber !== undefined)
     update.propertyNumber = input.propertyNumber || null;

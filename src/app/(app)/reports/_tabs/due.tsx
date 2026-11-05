@@ -10,7 +10,7 @@ import { getDueReport } from "@/lib/statement-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function DueReportPage({ searchParams }: { searchParams: Params }) {
+export default async function DueReport({ searchParams }: { searchParams: Params }) {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "report:view")) return <Forbidden />;
 
@@ -26,8 +26,7 @@ export default async function DueReportPage({ searchParams }: { searchParams: Pa
   return (
     <div className="space-y-4">
       <div>
-        <Link href="/reports" className="text-sm text-brass-dark hover:underline">← All reports</Link>
-        <h1 className="mt-2 text-2xl font-medium">Payment due</h1>
+        <h1 className="text-2xl font-medium">Payment due</h1>
         <p className="text-sm text-muted">
           Unpaid instalments falling due in the period, as of {formatReportDate(report.asOf)}.
           Projected dues (not yet due) are highlighted.

@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/rbac";
 import { can } from "@/lib/permissions";
 import { paiseToRupeeString, bpsToPercentString } from "@/lib/money";
 import { BookingForm } from "@/components/BookingForm";
+import { agentChoices } from "@/lib/agent-choices";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ export default async function EditBookingPage({
         mode="edit"
         bookingId={booking.id}
         customerId={booking.customerId}
+        agents={await agentChoices(booking.projectId)}
         initial={{
+          agentId: booking.agentId ?? "",
           bookingDate: booking.bookingDate,
           projectName: booking.projectName ?? "",
           propertyType: booking.propertyType as

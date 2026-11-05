@@ -106,6 +106,7 @@ export const auditEntityEnum = pgEnum("audit_entity", [
   "user",
   "unit",
   "project",
+  "agent",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -148,6 +149,18 @@ export const projects = pgTable(
   },
   (t) => ({ uniqueName: uniqueIndex("projects_name_area_idx").on(t.name, t.area) }),
 );
+
+// A broker/agent who brings buyers; commission is a share of the basic amount received.
+export const agents = pgTable("agents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").references(() => projects.id),
+  name: text("name").notNull(),
+  mobile: text("mobile"),
+  panMasked: text("pan_masked"), // the full PAN is not kept for agents
+  commissionBps: integer("commission_bps").notNull().default(0), // 200 = 2%
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const customers = pgTable(
   "customers",
@@ -270,6 +283,7 @@ export const bookings = pgTable(
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
     unitId: uuid("unit_id").references(() => units.id, { onDelete: "set null" }),
+    agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
     bookingCode: text("booking_code"),
     bookingDate: date("booking_date").notNull(),
     projectName: text("project_name"), // legacy text; projectId is the source of truth
@@ -385,6 +399,19 @@ export const payments = pgTable(
     paymentNumberIdx: uniqueIndex("payments_payment_number_idx").on(t.paymentNumber),
   }),
 );
+
+// Brokerage paid out to an agent.
+export const agentPayments = pgTable("agent_payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  paymentDate: date("payment_date").notNull(),
+  amount: paise("amount").notNull(),
+  mode: text("mode").notNull().default("bank_transfer"),
+  reference: text("reference"),
+  note: text("note"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const loans = pgTable("loans", {
   id: uuid("id").defaultRandom().primaryKey(),

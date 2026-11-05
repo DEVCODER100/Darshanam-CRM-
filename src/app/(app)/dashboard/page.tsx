@@ -10,6 +10,7 @@ import { activeCount, matchesUnit, parseUnitFilters } from "@/lib/unit-filters";
 import { panQueryHash } from "@/lib/report-filters";
 import { hashPan } from "@/lib/pan";
 import { UnitFilterPanel } from "@/components/UnitFilterPanel";
+import { filterOptions } from "@/lib/unit-table";
 import { activeProjectId, inProject } from "@/lib/project-scope";
 import { MapBoard } from "@/components/MapBoard";
 import { MapUpload } from "@/components/MapUpload";
@@ -54,8 +55,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
     clientPanHash = panQueryHash(filters.client, hashPan); // an exact PAN typed in the client box
   } catch {} // no encryption key: PAN search simply finds nothing
   const visible = board.units.filter((u) => matchesUnit(u, filters, { clientPanHash }));
-  const distinct = (xs: (string | null | undefined)[]) =>
-    [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const downloadQuery = new URLSearchParams(
     Object.entries(searchParams).filter(([k, val]) => val && !["unit", "edit", "view", "map"].includes(k)) as [string, string][],
   ).toString();
@@ -199,13 +198,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
         active={activeCount(filters)}
         found={visible.length}
         total={board.units.length}
-        options={{
-          types: board.types,
-          subTypes: distinct(board.units.map((u) => u.subType)),
-          banks: distinct(board.units.map((u) => u.booking?.loanBank)),
-          bookedBy: distinct(board.units.map((u) => u.booking?.bookedBy)),
-          floors: distinct(board.units.map((u) => u.floor)),
-        }}
+        options={filterOptions(board.units, board.types)}
         keep={{ view: searchParams.view, map: searchParams.map }}
         resetHref={href(Object.fromEntries(Object.keys(searchParams).filter((k) => !["view", "map"].includes(k)).map((k) => [k, undefined])))}
         downloadHref={`/api/units/export?${downloadQuery}`}

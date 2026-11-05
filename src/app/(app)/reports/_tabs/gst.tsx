@@ -7,7 +7,7 @@ import { Forbidden } from "@/components/ReportForbidden";
 
 export const dynamic = "force-dynamic";
 
-export default async function GstTrackerPage() {
+export default async function GstTracker() {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "report:view")) return <Forbidden />;
 
@@ -15,12 +15,7 @@ export default async function GstTrackerPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-medium">GST tracker</h1>
-        <Link href="/reports" className="text-sm text-brass-dark hover:underline">
-          ← All reports
-        </Link>
-      </div>
+      <h1 className="text-2xl font-medium">GST tracker</h1>
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Stat label="GST collected" value={formatINR(totals.collected, { paise2dp: false })} tone="paid" />

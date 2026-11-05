@@ -13,6 +13,7 @@ interface Values {
   propertyNumber: string;
   bookingAddress: string;
   unitStatus: "available" | "booked" | "sold";
+  agentId: string; // "" = no agent
   paymentType: "self_finance" | "bank_loan" | "installment" | "custom";
   stageBased: boolean;
   currentStage: string;
@@ -32,12 +33,14 @@ const today = new Date().toISOString().slice(0, 10);
 export function BookingForm({
   customerId,
   unit,
+  agents = [],
   mode = "create",
   bookingId,
   initial,
 }: {
   customerId?: string; // fixed customer (opened from a customer page)
   unit?: { id: string; projectName: string; unitType: string; unitNumber: string };
+  agents?: { id: string; name: string }[]; // the project's agents, for the optional Agent field
   mode?: "create" | "edit";
   bookingId?: string;
   initial?: Partial<Values>;
@@ -50,6 +53,7 @@ export function BookingForm({
     propertyNumber: unit?.unitNumber ?? "",
     bookingAddress: "",
     unitStatus: "booked",
+    agentId: "",
     paymentType: "self_finance",
     stageBased: false,
     currentStage: "",
@@ -112,6 +116,7 @@ export function BookingForm({
       propertyNumber: v.propertyNumber,
       bookingAddress: v.bookingAddress,
       unitStatus: v.unitStatus,
+      agentId: v.agentId || null,
       paymentType: v.paymentType,
       stageBased: v.stageBased,
       currentStage: v.stageBased && v.currentStage ? v.currentStage : null,
@@ -215,6 +220,14 @@ export function BookingForm({
             <option value="custom">Custom (lump sum + stage-wise)</option>
           </select>
         </Field>
+        {agents.length > 0 && (
+          <Field label="Agent (optional)">
+            <select className="field" value={v.agentId} onChange={set("agentId")}>
+              <option value="">No agent</option>
+              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </Field>
+        )}
         <label className="flex items-center gap-2 rounded-md border border-hairline p-3 text-sm">
           <input
             type="checkbox"

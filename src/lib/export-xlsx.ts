@@ -19,7 +19,8 @@ export async function buildXlsx(table: ExportTable): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Darshanam CRM";
   wb.created = new Date();
-  const ws = wb.addWorksheet(table.title.slice(0, 31));
+  // Excel forbids : / ? * [ ] in sheet names
+  const ws = wb.addWorksheet(table.title.replace(/[\/?*[\]:]/g, "-").slice(0, 31));
 
   const headerRow = ws.addRow(table.columns.map((c) => c.header));
   headerRow.font = { bold: true };
