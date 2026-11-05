@@ -10,7 +10,7 @@ import {
   bpsToPercentString,
   percentToBps,
 } from "@/lib/money";
-import { loanPlan, rebalance, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
+import { loanPlan, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -156,27 +156,34 @@ export function ScheduleEditor({
     addRow({ label, percentBps: bps, basic: applyBasisPoints(price, BigInt(bps)) });
   };
 
-  // Typing a percentage sets Basic to that share of the price (GST at the booking
-  // rate) and rebalances the other rows so the plan always adds up to 100%.
-  function onPercent(i: number, value: string) {
-    let bps: number | null = null;
+  const bpsOf = (v: string): number | null => {
     try {
-      bps = value && price > 0n ? Number(percentToBps(value)) : null;
-    } catch {}
+      return v && price > 0n ? Number(percentToBps(v)) : null;
+    } catch {
+      return null; // half-typed, e.g. "25."
+    }
+  };
+  // Typing a percentage sets that row's Basic to the share of the price (GST at the booking
+  // rate). Other rows are never touched, so you stay in full control of the split.
+  function setShare(i: number, percentage: string, bps: number) {
+    const basic = applyBasisPoints(price, BigInt(bps));
+    patch(i, {
+      percentage,
+      basic: paiseToRupeeString(basic),
+      gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
+    });
+  }
+  const onPercent = (i: number, value: string) => {
+    const bps = bpsOf(value);
     if (bps === null || bps < 0) return patch(i, { percentage: value });
-    const shares = rebalance(rows.map((r) => (r.percentage ? Number(percentToBps(r.percentage)) : null)), i, bps);
-    setRows((rs) =>
-      rs.map((r, k) => {
-        if (shares[k] === null) return r;
-        const basic = applyBasisPoints(price, BigInt(shares[k]!));
-        return {
-          ...r,
-          percentage: k === i ? value : bpsToPercentString(BigInt(shares[k]!)),
-          basic: paiseToRupeeString(basic),
-          gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
-        };
-      }),
-    );
+    setShare(i, value, bps);
+  };
+  const sharesTotal = rows.reduce((t, r) => t + (bpsOf(r.percentage) ?? 0), 0);
+  // Put whatever is missing from (or over) 100% on the last row.
+  function balance() {
+    const last = rows.length - 1;
+    const rest = 10000 - (sharesTotal - (bpsOf(rows[last].percentage) ?? 0));
+    if (rest >= 0) setShare(last, bpsToPercentString(BigInt(rest)), rest);
   }
 
   const gross = (r: Row) =>
@@ -389,6 +396,16 @@ export function ScheduleEditor({
               {STAGE_STEPS.map((st, i) => <option key={st.label} value={i}>{st.label}</option>)}
             </select>
           </>
+        )}
+        {price > 0n && (
+          <span className={sharesTotal === 10000 ? "font-medium text-paid" : "font-medium text-due"}>
+            Shares {bpsToPercentString(BigInt(sharesTotal))}% of 100%
+            {sharesTotal !== 10000 && (
+              <button type="button" onClick={balance} className="ml-2 font-normal underline">
+                Put the {sharesTotal < 10000 ? "rest" : "difference"} on the last row
+              </button>
+            )}
+          </span>
         )}
         <span>Basic <span className="money">{formatINR(sum((r) => paise(r.basic)))}</span></span>
         <span>GST <span className="money">{formatINR(sum((r) => paise(r.gst)))}</span></span>

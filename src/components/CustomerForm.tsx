@@ -75,7 +75,16 @@ export function CustomerForm({
     });
     setBusy(false);
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) return setError(body.error ?? `Request failed (${response.status})`);
+    if (!response.ok) {
+      // Say which field is wrong, not just "Validation failed".
+      const issues = Object.entries(body.issues?.fieldErrors ?? {}) as [string, string[]][];
+      const label = (k: string) => ALL_FIELDS.find((f) => f.key === k)?.label ?? k;
+      return setError(
+        issues.length
+          ? issues.map(([k, m]) => `${label(k)}: ${m[0]}`).join(" · ")
+          : (body.error ?? `Request failed (${response.status})`),
+      );
+    }
     router.push(
       mode === "edit"
         ? `/customers/${customerId}`
@@ -108,6 +117,8 @@ export function CustomerForm({
             className="field font-mono uppercase"
             placeholder="ABCDE1234F"
             maxLength={10}
+            pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]"
+            title="10 characters: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)"
             disabled={noPan}
             required={!noPan}
           />
