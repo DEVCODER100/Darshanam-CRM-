@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { computeCost } from "@/lib/cost";
 import { rupeesToPaise, percentToBps, formatINR } from "@/lib/money";
@@ -32,16 +31,12 @@ const today = new Date().toISOString().slice(0, 10);
 
 export function BookingForm({
   customerId,
-  defaultCustomerId,
-  customers,
   unit,
   mode = "create",
   bookingId,
   initial,
 }: {
   customerId?: string; // fixed customer (opened from a customer page)
-  defaultCustomerId?: string; // pre-selected in the picker (e.g. who the unit was blocked for)
-  customers?: { id: string; name: string }[]; // pick one when no customerId
   unit?: { id: string; projectName: string; unitType: string; unitNumber: string };
   mode?: "create" | "edit";
   bookingId?: string;
@@ -69,7 +64,6 @@ export function BookingForm({
     documentationPercent: "0",
     ...initial,
   });
-  const [pickedCustomer, setPickedCustomer] = useState(defaultCustomerId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -146,7 +140,7 @@ export function BookingForm({
           body: JSON.stringify({
             ...bookingPayload,
             ...costPayload,
-            customerId: customerId || pickedCustomer,
+            customerId,
             unitId: unit?.id,
           }),
         });
@@ -184,32 +178,6 @@ export function BookingForm({
         <p className="lg:col-span-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">
           {error}
         </p>
-      )}
-
-      {!customerId && customers && (
-        <Section title="Customer">
-          <Field label="Who is booking this unit?" required>
-            <select
-              className="field"
-              value={pickedCustomer}
-              onChange={(e) => setPickedCustomer(e.target.value)}
-              required
-            >
-              <option value="">Select a customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </Field>
-          {unit && (
-            <Link
-              href={`/customers/new?returnTo=${encodeURIComponent(`/bookings/new?unitId=${unit.id}`)}`}
-              className="text-sm text-brass-dark hover:underline"
-            >
-              + Register a new client
-            </Link>
-          )}
-        </Section>
       )}
 
       <Section title="Unit details">

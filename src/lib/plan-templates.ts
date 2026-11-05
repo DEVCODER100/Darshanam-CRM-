@@ -48,3 +48,26 @@ export function loanPlan(price: bigint, loanAmount: bigint | null): PlanRow[] {
     ...spread(loan, price, "Bank disbursement: "),
   ];
 }
+
+/**
+ * Keep a plan's shares adding up to 100% when one is edited: the other rows share
+ * what is left in proportion to what they had (equally if they were all 0). Works in
+ * basis points; `null` rows (no percentage) are left alone. The last other row takes
+ * any rounding, so the total is exact.
+ */
+export function rebalance(bps: (number | null)[], index: number, value: number): (number | null)[] {
+  const edited = Math.min(Math.max(value, 0), 10000);
+  const others = bps.map((v, i) => (i !== index && v !== null ? i : -1)).filter((i) => i >= 0);
+  if (!others.length) return bps.map((v, i) => (i === index ? edited : v));
+  const left = 10000 - edited;
+  const total = others.reduce((s, i) => s + (bps[i] as number), 0);
+  const out = [...bps];
+  out[index] = edited;
+  let given = 0;
+  others.forEach((i, n) => {
+    const share = n === others.length - 1 ? left - given : Math.round(total > 0 ? (left * (bps[i] as number)) / total : left / others.length);
+    out[i] = share;
+    given += share;
+  });
+  return out;
+}

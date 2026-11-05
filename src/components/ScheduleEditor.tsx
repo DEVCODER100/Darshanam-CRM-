@@ -10,7 +10,7 @@ import {
   bpsToPercentString,
   percentToBps,
 } from "@/lib/money";
-import { loanPlan, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
+import { loanPlan, rebalance, stagePlan, STAGE_STEPS, type PlanRow } from "@/lib/plan-templates";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -156,20 +156,27 @@ export function ScheduleEditor({
     addRow({ label, percentBps: bps, basic: applyBasisPoints(price, BigInt(bps)) });
   };
 
-  // Typing a percentage sets Basic to that share of the price, with GST
-  // recalculated at the booking rate.
+  // Typing a percentage sets Basic to that share of the price (GST at the booking
+  // rate) and rebalances the other rows so the plan always adds up to 100%.
   function onPercent(i: number, value: string) {
-    let bps: bigint | null = null;
+    let bps: number | null = null;
     try {
-      bps = value && price > 0n ? percentToBps(value) : null;
+      bps = value && price > 0n ? Number(percentToBps(value)) : null;
     } catch {}
-    if (bps === null || bps < 0n) return patch(i, { percentage: value });
-    const basic = applyBasisPoints(price, bps);
-    patch(i, {
-      percentage: value,
-      basic: paiseToRupeeString(basic),
-      gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
-    });
+    if (bps === null || bps < 0) return patch(i, { percentage: value });
+    const shares = rebalance(rows.map((r) => (r.percentage ? Number(percentToBps(r.percentage)) : null)), i, bps);
+    setRows((rs) =>
+      rs.map((r, k) => {
+        if (shares[k] === null) return r;
+        const basic = applyBasisPoints(price, BigInt(shares[k]!));
+        return {
+          ...r,
+          percentage: k === i ? value : bpsToPercentString(BigInt(shares[k]!)),
+          basic: paiseToRupeeString(basic),
+          gst: paiseToRupeeString(applyBasisPoints(basic, BigInt(gstBps))),
+        };
+      }),
+    );
   }
 
   const gross = (r: Row) =>

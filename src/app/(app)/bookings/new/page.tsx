@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, customers, units } from "@/db/schema";
 import { BookingForm } from "@/components/BookingForm";
 import { blockActive } from "@/lib/unit-block";
-import { activeProjectId, inProject } from "@/lib/project-scope";
 
 export const dynamic = "force-dynamic";
 
-// Open from a customer (?customerId=...) or from a free unit on the board
-// (?unitId=...). With only a unit, the form lets you pick the customer.
+// Open from a customer (?customerId=...), or from a unit (?unitId=...), which first sends you to
+// register the new client.
 export default async function NewBookingPage({
   searchParams,
 }: {
@@ -47,27 +46,20 @@ export default async function NewBookingPage({
   }
   const held = unit && blockActive(unit) ? unit : undefined;
 
-  const customerList = customer
-    ? undefined
-    : (
-        await db
-          .select()
-          .from(customers)
-          // Clients are per project: offer only those of the unit's (or the selected) project.
-          .where(unit?.projectId ? eq(customers.projectId, unit.projectId) : inProject(customers.projectId, await activeProjectId()))
-          .orderBy(asc(customers.fullName))
-      ).map((c) => ({
-        id: c.id,
-        name: `${c.fullName} · ${c.mobile}`,
-      }));
+  // Booking a unit starts with the buyer: a unit held for an existing client goes straight on with
+  // them; otherwise register the new client first, then come back here with them filled in.
+  if (unit && !customer) {
+    const back = `/bookings/new?unitId=${unit.id}`;
+    redirect(held?.blockCustomerId ? `${back}&customerId=${held.blockCustomerId}` : `/customers/new?returnTo=${encodeURIComponent(back)}`);
+  }
 
   return (
     <div>
       <Link
-        href={customer ? `/customers/${customer.id}` : "/dashboard"}
+        href={`/customers/${customer!.id}`}
         className="text-sm text-brass-dark hover:underline"
       >
-        ← {customer ? customer.fullName : "Unit board"}
+        ← {customer!.fullName}
       </Link>
       <h1 className="mb-4 mt-2 text-2xl font-medium">
         {unit ? `Book ${unit.unitType} ${unit.unitNumber}` : "New booking"}
@@ -79,9 +71,7 @@ export default async function NewBookingPage({
         </p>
       )}
       <BookingForm
-        defaultCustomerId={held?.blockCustomerId ?? undefined}
-        customerId={customer?.id}
-        customers={customerList}
+        customerId={customer!.id}
         unit={
           unit
             ? {
