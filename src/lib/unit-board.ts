@@ -3,12 +3,14 @@
  * A unit is "booked" when a booking points at it, "blocked" when an admin has
  * blocked it, otherwise "available". Nothing about booked-ness is stored.
  */
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, customers, units, users } from "@/db/schema";
+import { bookings, customers, documents, loans, propertyCosts, units, users } from "@/db/schema";
 import { blockActive } from "./unit-block";
 import { activeProjectId, inProject } from "./project-scope";
+import { loadAccounts } from "./statement-data";
+import type { FilterUnit, UnitStatus } from "./unit-filters";
 import { computeGstStatus } from "./gst-calc";
 import { loadBookingDetail, todayISO, type BookingDetail } from "./booking-detail";
 import {
@@ -17,19 +19,12 @@ import {
   scheduleComponents,
 } from "./statement";
 
-export type UnitStatus = "booked" | "available" | "blocked";
+export type { UnitStatus };
 
-export interface BoardUnit {
+export interface BoardUnit extends FilterUnit {
   id: string;
   projectName: string;
-  unitType: string;
-  unitNumber: string;
-  name: string; // "Bungalow 3"
-  status: UnitStatus;
-  owner: string | null;
   bookingId: string | null;
-  areaSqft: string | null;
-  floor: string | null;
   /** Where its box sits on a site map (percent of the map), if placed. */
   map: { id: string; x: number; y: number; w: number; h: number } | null;
   /** Who the unit is held for, set while the unit is blocked. */
@@ -56,7 +51,8 @@ export const unitName = (type: string, number: string) =>
 
 export async function getBoard(): Promise<BoardData> {
   const blocker = alias(users, "blocker");
-  const rows = await db
+  const [rows, accounts] = await Promise.all([
+    db
     .select({
       id: units.id,
       projectName: units.projectName,
@@ -79,12 +75,30 @@ export async function getBoard(): Promise<BoardData> {
       blockedByName: blocker.name,
       bookingId: bookings.id,
       owner: customers.fullName,
+      subType: units.subType,
+      bCode: bookings.bookingCode,
+      bDate: bookings.bookingDate,
+      paymentType: bookings.paymentType,
+      stageBased: bookings.stageBased,
+      stage: bookings.currentStage,
+      bookedBy: customers.salesExecutive,
+      clientCode: customers.clientCode,
+      mobile: customers.mobile,
+      panHash: customers.panHash,
+      loanBank: loans.bankName,
+      loanId: loans.id,
+      totalCost: propertyCosts.totalCost,
+      hasAgreement: sql<boolean>`exists (select 1 from ${documents} d where d.customer_id = ${customers.id} and d.document_type = 'agreement')`,
     })
     .from(units)
     .leftJoin(bookings, eq(bookings.unitId, units.id))
     .leftJoin(customers, eq(customers.id, bookings.customerId))
+    .leftJoin(loans, eq(loans.bookingId, bookings.id))
+    .leftJoin(propertyCosts, eq(propertyCosts.bookingId, bookings.id))
     .leftJoin(blocker, eq(blocker.id, units.blockedBy))
-    .where(inProject(units.projectId, await activeProjectId()));
+    .where(inProject(units.projectId, await activeProjectId())),
+    loadAccounts(todayISO()),
+  ]);
 
   const list: BoardUnit[] = rows
     .map((r) => {
@@ -100,6 +114,25 @@ export async function getBoard(): Promise<BoardData> {
         bookingId: r.bookingId,
         areaSqft: r.areaSqft,
         floor: r.floor,
+        subType: r.subType,
+        booking: r.bookingId
+          ? {
+              code: r.bCode,
+              date: r.bDate!,
+              paymentType: r.paymentType!,
+              stageBased: !!r.stageBased,
+              stage: r.stage,
+              bookedBy: r.bookedBy,
+              clientCode: r.clientCode,
+              mobile: r.mobile!,
+              panHash: r.panHash,
+              loanBank: r.loanBank,
+              hasLoan: !!r.loanId,
+              hasAgreement: !!r.hasAgreement,
+              totalCost: r.totalCost ?? 0n,
+              accountStatus: accounts.get(r.bookingId)?.status ?? "nothing_paid",
+            }
+          : null,
         map:
           r.mapId && r.mapX !== null && r.mapY !== null && r.mapW !== null && r.mapH !== null
             ? { id: r.mapId, x: r.mapX, y: r.mapY, w: r.mapW, h: r.mapH }

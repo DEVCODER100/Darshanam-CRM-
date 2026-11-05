@@ -40,6 +40,7 @@ export async function POST(req: Request) {
       number: u.unitNumber,
       area: u.areaSqft,
       floor: u.floor,
+      subType: u.subType,
     })),
   );
   const summary = { create: plan.create.length, update: plan.update.length, unchanged: plan.unchanged };
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
             unitNumber: r.number,
             areaSqft: r.area,
             floor: r.floor,
+            subType: r.subType,
           })),
         )
         .onConflictDoNothing();
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
           .set({
             ...(u.row.area !== null && { areaSqft: u.row.area }),
             ...(u.row.floor !== null && { floor: u.row.floor }),
+            ...(u.row.subType !== null && { subType: u.row.subType }),
           })
           .where(eq(units.id, u.id)),
       );

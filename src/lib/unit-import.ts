@@ -13,6 +13,7 @@ export interface UnitRow {
   number: string;
   area: string | null; // sq ft
   floor: string | null;
+  subType: string | null; // e.g. "Type A"
 }
 
 export interface ExistingUnit {
@@ -22,6 +23,7 @@ export interface ExistingUnit {
   number: string;
   area: string | null;
   floor: string | null;
+  subType: string | null;
 }
 
 const squash = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
@@ -39,18 +41,25 @@ export function normalizeType(raw: string): UnitType | null {
   return null;
 }
 
+/** "38 · Type E" -> "Type E": a sub type already written in the unit's name. */
+export function subTypeFromName(name: string): string | null {
+  const m = /\btype\s*-?\s*([A-Za-z0-9]{1,3})\b/i.exec(name);
+  return m ? `Type ${m[1].toUpperCase()}` : null;
+}
+
 /** One key for "the same unit", ignoring case and spacing. */
 export const unitKey = (project: string, type: string, number: string) =>
   [project, type, number].map((p) => squash(p).toLowerCase()).join("|");
 
 // --- reading the table ------------------------------------------------------
 
-export type Field = "number" | "type" | "project" | "area" | "floor";
+export type Field = "number" | "type" | "subType" | "project" | "area" | "floor";
 export type Mapping = Partial<Record<Field, number>>; // field -> column index
 
 const HEADER_WORDS: Record<Field, RegExp> = {
   number: /^(unit(no|number|name|id|code)?|(plot|flat|shop|house|property|villa|bungalow)(no|number|name)|number)$/,
   type: /^(unittype|propertytype|type|category|kind)$/,
+  subType: /^(subtype|unitsubtype|plantype|variant|layouttype)$/,
   project: /^(project(name)?|society|scheme|phase|wing|block|tower|building|site)$/,
   area: /(area|sqft|sqmt|sqm|sqyd|sqyard|carpet|builtup|superbuiltup)/,
   floor: /^(floor(no|number)?|level)$/,
@@ -135,6 +144,7 @@ export function buildRows(
       number,
       area: parseArea(cell(r, "area"), opts.areaUnit ?? "sqft"),
       floor: cell(r, "floor") || null,
+      subType: cell(r, "subType") || subTypeFromName(number),
     });
   });
   return { rows: out, problems };
@@ -161,6 +171,7 @@ export function planImport(rows: UnitRow[], existing: ExistingUnit[]): ImportPla
     const changes: string[] = [];
     if (row.area !== null && Number(row.area) !== Number(found.area ?? NaN)) changes.push(`area ${row.area} sq ft`);
     if (row.floor !== null && row.floor !== found.floor) changes.push(`floor ${row.floor}`);
+    if (row.subType !== null && row.subType !== found.subType) changes.push(`sub type ${row.subType}`);
     if (changes.length) plan.update.push({ id: found.id, row, changes });
     else plan.unchanged++;
   }

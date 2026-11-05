@@ -231,6 +231,7 @@ export const units = pgTable(
     unitNumber: text("unit_number").notNull(),
     areaSqft: numeric("area_sqft", { precision: 10, scale: 2 }),
     floor: text("floor"),
+    subType: text("sub_type"), // e.g. "Type A"
     // Where the unit's box sits on a site map (percent of the map; null = not placed).
     mapId: uuid("map_id").references(() => siteMaps.id, { onDelete: "set null" }),
     mapX: real("map_x"),

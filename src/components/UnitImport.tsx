@@ -18,6 +18,7 @@ import { UNIT_TYPES } from "@/lib/validators";
 const FIELDS: [Field, string][] = [
   ["number", "Unit number / name *"],
   ["type", "Type"],
+  ["subType", "Sub type (Type A...)"],
   ["area", "Area"],
   ["floor", "Floor"],
 ];

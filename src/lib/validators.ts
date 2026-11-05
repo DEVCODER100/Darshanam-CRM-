@@ -221,6 +221,7 @@ export const unitImportSchema = z.object({
         number: z.string().trim().min(1),
         area: z.string().nullable().default(null),
         floor: z.string().nullable().default(null),
+        subType: z.string().nullable().default(null),
       }),
     )
     .min(1, "Nothing to import")

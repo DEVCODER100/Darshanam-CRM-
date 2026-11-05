@@ -1,0 +1,1 @@
+ALTER TABLE "units" ADD COLUMN "sub_type" text;

@@ -6,6 +6,10 @@ import { asc, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { siteMaps, users } from "@/db/schema";
 import { BOX, STATUSES } from "@/lib/unit-style";
+import { activeCount, matchesUnit, parseUnitFilters } from "@/lib/unit-filters";
+import { panQueryHash } from "@/lib/report-filters";
+import { hashPan } from "@/lib/pan";
+import { UnitFilterPanel } from "@/components/UnitFilterPanel";
 import { activeProjectId, inProject } from "@/lib/project-scope";
 import { MapBoard } from "@/components/MapBoard";
 import { MapUpload } from "@/components/MapUpload";
@@ -16,7 +20,7 @@ import { UnitPanel } from "@/components/UnitPanel";
 
 export const dynamic = "force-dynamic";
 
-type Params = { unit?: string; type?: string; status?: string; q?: string; project?: string; view?: string; map?: string; edit?: string };
+type Params = Record<string, string | undefined>; // unit, view, map, edit and all the filter fields
 
 /** Real staff for the "Blocked by" list; an email tells apart people with the same name. */
 async function staffChoices() {
@@ -34,9 +38,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
   const user = await getCurrentUser();
   const board = await getBoard();
 
-  const status = STATUSES.find((s) => s.key === searchParams.status)?.key;
-  const type = board.types.includes(searchParams.type ?? "") ? searchParams.type : undefined;
-  const q = searchParams.q?.trim().toLowerCase();
+  const filters = parseUnitFilters(searchParams);
+  const { status, type } = filters;
 
   const href = (patch: Partial<Params>) => {
     const merged = { ...searchParams, edit: undefined, ...patch };
@@ -46,12 +49,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
     return s ? `/dashboard?${s}` : "/dashboard";
   };
 
-  const visible = board.units.filter(
-    (u) =>
-      (!status || u.status === status) &&
-      (!type || u.unitType === type) &&
-      (!q || u.name.toLowerCase().includes(q) || (u.owner ?? "").toLowerCase().includes(q)),
-  );
+  let clientPanHash: string | null = null;
+  try {
+    clientPanHash = panQueryHash(filters.client, hashPan); // an exact PAN typed in the client box
+  } catch {} // no encryption key: PAN search simply finds nothing
+  const visible = board.units.filter((u) => matchesUnit(u, filters, { clientPanHash }));
+  const distinct = (xs: (string | null | undefined)[]) =>
+    [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const downloadQuery = new URLSearchParams(
+    Object.entries(searchParams).filter(([k, val]) => val && !["unit", "edit", "view", "map"].includes(k)) as [string, string][],
+  ).toString();
 
   // Group by project when there is more than one.
   const groups = new Map<string, typeof visible>();
@@ -186,6 +193,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pa
           <button className="btn-secondary px-3 py-1.5">Find</button>
         </form>
       </div>
+
+      <UnitFilterPanel
+        values={Object.fromEntries(Object.entries(searchParams).filter(([, val]) => val)) as Record<string, string>}
+        active={activeCount(filters)}
+        found={visible.length}
+        total={board.units.length}
+        options={{
+          types: board.types,
+          subTypes: distinct(board.units.map((u) => u.subType)),
+          banks: distinct(board.units.map((u) => u.booking?.loanBank)),
+          bookedBy: distinct(board.units.map((u) => u.booking?.bookedBy)),
+          floors: distinct(board.units.map((u) => u.floor)),
+        }}
+        keep={{ view: searchParams.view, map: searchParams.map }}
+        resetHref={href(Object.fromEntries(Object.keys(searchParams).filter((k) => !["view", "map"].includes(k)).map((k) => [k, undefined])))}
+        downloadHref={`/api/units/export?${downloadQuery}`}
+      />
 
       <div className={panel ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_470px]" : ""}>
         <div className="min-w-0 space-y-5">

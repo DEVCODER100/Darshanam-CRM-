@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildRows,
+  subTypeFromName,
   findHeaderRow,
   guessMapping,
   normalizeType,
@@ -50,8 +51,8 @@ describe("buildRows", () => {
       { defaultProject: "Main" },
     );
     expect(problems).toEqual([]);
-    expect(rows[0]).toEqual({ project: "Green Park", type: "Bungalow", number: "B-1", area: "2150.50", floor: "G+1" });
-    expect(rows[1]).toEqual({ project: "Main", type: "Flat", number: "12", area: null, floor: null });
+    expect(rows[0]).toEqual({ project: "Green Park", type: "Bungalow", number: "B-1", area: "2150.50", floor: "G+1", subType: null });
+    expect(rows[1]).toEqual({ project: "Main", type: "Flat", number: "12", area: null, floor: null, subType: null });
   });
   it("converts square metres and yards", () => {
     expect(buildRows([["1", "villa", "", "100", ""]], mapping, { areaUnit: "sqm" }).rows[0].area).toBe("1076.39");
@@ -86,8 +87,8 @@ describe("buildRows", () => {
 
 describe("planImport", () => {
   const existing: ExistingUnit[] = [
-    { id: "a", project: "", type: "Villa", number: "V-101", area: "1500.00", floor: null },
-    { id: "b", project: "", type: "Villa", number: "V-102", area: null, floor: null },
+    { id: "a", project: "", type: "Villa", number: "V-101", area: "1500.00", floor: null, subType: null },
+    { id: "b", project: "", type: "Villa", number: "V-102", area: null, floor: null, subType: null },
   ];
   const row = (number: string, area: string | null = null, floor: string | null = null) => ({
     project: "",
@@ -95,6 +96,7 @@ describe("planImport", () => {
     number,
     area,
     floor,
+    subType: null,
   });
   it("splits new, changed and identical units, ignoring case", () => {
     const plan = planImport([row("v-101", "1500"), row("V-102", "1800.50", "G"), row("V-103")], existing);
@@ -107,5 +109,17 @@ describe("planImport", () => {
   });
   it("unitKey ignores case and extra spaces", () => {
     expect(unitKey("Green  Park", "Villa", "V 1")).toBe(unitKey("green park", "villa", "v 1"));
+  });
+});
+
+describe("sub type", () => {
+  it("is read from the unit name", () => {
+    expect(subTypeFromName("38 · Type E")).toBe("Type E");
+    expect(subTypeFromName("V-12 type-b")).toBe("Type B");
+    expect(subTypeFromName("B-12")).toBeNull();
+  });
+  it("comes from its own column, else from the name", () => {
+    const { rows } = buildRows([["41 · Type F", "Villa", "Type A"], ["42 · Type F", "Villa", ""]], { number: 0, type: 1, subType: 2 });
+    expect(rows.map((r) => r.subType)).toEqual(["Type A", "Type F"]);
   });
 });
